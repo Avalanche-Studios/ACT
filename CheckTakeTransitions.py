@@ -38,9 +38,10 @@ gListSourceTakes = FBList()
 gListDestTakes = FBList()
 
 # this is a global definition for a character pipeline
-CHAR_NAMESPACE 		= 'export' # character namespace
-CHAR_ROOT 			= 'Reference' # this is a name of a root node
-FOOTSTEP_MARK_NAME 	= 'LEG_LIFT_SEG'
+TOOL_TITLE              = 'Check Transitions Tool'
+CHAR_NAMESPACE          = '' # character namespace
+CHAR_ROOT               = 'Hips' # this is a name of a root node
+FOOTSTEP_MARK_NAME      = 'LEG_LIFT'
 
 gGraphFilePath = os.path.join( lSystem.UserConfigPath, 'TransitionsGraph.xml' )
 
@@ -106,9 +107,9 @@ def SaveGraph(fname):
     top_element.appendChild(elem_takes)
 
     #    
-    res = open(fname, "w")
-    res.writelines(newdoc.toprettyxml())
-    res.close()
+    with open(fname, "w") as f:
+        f.writelines(newdoc.toprettyxml())
+
 
 def ClearStoryFolder(folder):
     pass
@@ -118,48 +119,58 @@ def ClearStory():
     ClearStoryFolder(lStory.RootFolder)
     ClearStoryFolder(lStory.RootEditFolder)
 
-    listToDelete = []
+    list_to_delete = []
 
     for comp in lScene.Components:
         if isinstance(comp, FBStoryTrack) or isinstance(comp, FBStoryClip):
-            listToDelete.append(comp)
+            list_to_delete.append(comp)
             
-    map(FBComponent.FBDelete, listToDelete)
+    map(FBComponent.FBDelete, list_to_delete)
 
-def AddModelToList(modelList, root):
+def AddModelToList(model_list, root):
 
-    modelList.append(root)
+    model_list.append(root)
     
     for child in root.Children:
-        AddModelToList(modelList, child)
+        AddModelToList(model_list, child)
+
+def FindRootModel(char_ns=CHAR_NAMESPACE):
+    root_name = '{}:{}'.format(char_ns, CHAR_ROOT) if char_ns != '' else CHAR_ROOT
+    return FBFindModelByLabelName(root_name)
 
 def ConnectNSModelsToProp(prop, char_ns):
     
-    lList = []
-    lRoot = FBFindModelByLabelName('{}:{}'.format(char_ns, CHAR_ROOT))
-    #lList.append(lRoot)
+    model_list = []
+    root_model = FindRootModel(char_ns)
     
-    if lRoot is not None:
-        AddModelToList(lList, lRoot)
+    if root_model is None:
+        raise Exception('Root model is not found, please check tool documentation')
     
-    for obj in lList:
+    AddModelToList(model_list, root_model)
+    
+    for obj in model_list:
         FBConnect(obj, prop)
 
 def CalculateTakeTimeSpan(char_ns):
     
-    lTimeSpan = FBTimeSpan(lPlayer.LoopStart, lPlayer.LoopStop)
-    lRoot = FBFindModelByLabelName('{}:{}'.format(char_ns, CHAR_ROOT))
+    time_span = FBTimeSpan(lPlayer.LoopStart, lPlayer.LoopStop)
     
-    animNode = lRoot.Translation.GetAnimationNode()
-    if animNode is not None and animNode.KeyCount > 0 and animNode.Nodes[0].FCurve is not None:
+    root_model = FindRootModel(char_ns)    
+    if root_model is None:
+        raise Exception('Root model is not found, please check tool documentation')
         
-        lCurve = animNode.Nodes[0].FCurve
-        lStartTime = lCurve.Keys[0].Time
-        lStopTime = lCurve.Keys[len(lCurve.Keys)-1].Time
+    anim_node = root_model.Translation.GetAnimationNode()
+    if anim_node is not None and anim_node.KeyCount > 0 and anim_node.Nodes[0].FCurve is not None:
     
-        lTimeSpan.Set(lStartTime, lStopTime)
+        fcurve = anim_node.Nodes[0].FCurve
+        start_time = fcurve.Keys[0].Time
+        stop_time = fcurve.Keys[len(fcurve.Keys)-1].Time
     
-    return lTimeSpan
+        time_span.Set(start_time, stop_time)
+    else:
+        raise Exception('Root model doesnt have any animation in a current take')
+    
+    return time_span
         
 
 def MakeTransition(char_ns, src, dst):
@@ -172,47 +183,47 @@ def MakeTransition(char_ns, src, dst):
     if prop is not None:
         ConnectNSModelsToProp(prop, char_ns)
     
-    lSrcTake = None
-    lDstTake = None
+    src_take = None
+    dst_take = None
     
     for take in lScene.Takes:
         if take.Name == src:
-            lSrcTake = take
+            src_take = take
         elif take.Name == dst:
-            lDstTake = take    
+            dst_take = take    
     
-    if lSrcTake is not None and lDstTake is not None:
+    if src_take is not None and dst_take is not None:
     
-        lSrcSpan = lSrcTake.ReferenceTimeSpan #LocalTimeSpan
-        lDstSpan = lDstTake.ReferenceTimeSpan #LocalTimeSpan
+        lSrcSpan = src_take.ReferenceTimeSpan #LocalTimeSpan
+        lDstSpan = dst_take.ReferenceTimeSpan #LocalTimeSpan
         
         currTake = lSystem.CurrentTake
         
-        lSystem.CurrentTake = lSrcTake
+        lSystem.CurrentTake = src_take
         lScene.Evaluate()
         lSrcSpan = CalculateTakeTimeSpan(char_ns)
         lPlayer.LoopStart = lSrcSpan.GetStart()
         lPlayer.LoopStop = lSrcSpan.GetStop()
                 
-        lSrcClip = lTrack.CopyTakeIntoTrack(lSrcSpan, lSrcTake)
+        src_clip = lTrack.CopyTakeIntoTrack(lSrcSpan, src_take)
         
-        lSystem.CurrentTake = lDstTake
+        lSystem.CurrentTake = dst_take
         lScene.Evaluate()
         lDstSpan = CalculateTakeTimeSpan(char_ns)
         lPlayer.LoopStart = lDstSpan.GetStart()
         lPlayer.LoopStop = lDstSpan.GetStop()
 
-        lDstClip = lTrack.CopyTakeIntoTrack(lDstSpan, lDstTake, lSrcSpan.GetStop())
+        dst_clip = lTrack.CopyTakeIntoTrack(lDstSpan, dst_take, lSrcSpan.GetStop())
         
         lSystem.CurrentTake = currTake
         lScene.Evaluate()
         
-        lDstClip.Match('{}:{}'.format(char_ns, CHAR_ROOT), 
+        dst_clip.Match('{}:{}'.format(char_ns, CHAR_ROOT), 
             FBStoryClipMatchingTimeType.kFBStoryClipMatchingTimeEndOfPreviousClip, 
             FBStoryClipMatchingTranslationType.kFBStoryClipMatchingTranslationGravityXZ, 
             FBStoryClipMatchingRotationType.kFBStoryClipMatchingRotationXYZ) 
 
-        clips = [lSrcClip, lDstClip]
+        clips = [src_clip, dst_clip]
 
     return clips
 
@@ -282,23 +293,23 @@ def EventButtonMakeCurrentClick(control, event):
 
 def EventButtonLoadGraphClick(control, event):
     
-    lDialog = FBFilePopup()
-    lDialog.Filter = '*.xml'
-    lDialog.Style = FBFilePopupStyle.kFBFilePopupOpen
-    lDialog.Path = os.path.dirname(gGraphFilePath)
+    dialog = FBFilePopup()
+    dialog.Filter = '*.xml'
+    dialog.Style = FBFilePopupStyle.kFBFilePopupOpen
+    dialog.Path = os.path.dirname(gGraphFilePath)
 
-    if lDialog.Execute():    
-        LoadGraph(lDialog.FullFilename)
+    if dialog.Execute():    
+        LoadGraph(dialog.FullFilename)
 
 def EventButtonSaveGraphClick(control, event):
 
-    lDialog = FBFilePopup()
-    lDialog.Filter = '*.xml'
-    lDialog.Style = FBFilePopupStyle.kFBFilePopupSave
-    lDialog.Path = os.path.dirname(gGraphFilePath)
+    dialog = FBFilePopup()
+    dialog.Filter = '*.xml'
+    dialog.Style = FBFilePopupStyle.kFBFilePopupSave
+    dialog.Path = os.path.dirname(gGraphFilePath)
     
-    if lDialog.Execute():    
-        SaveGraph(lDialog.FullFilename)
+    if dialog.Execute():    
+        SaveGraph(dialog.FullFilename)
 
 def EventEditFilterChange(control, event):
     
@@ -462,7 +473,14 @@ def EventButtonMakeTransitionBClick(control, event):
         srcTake = gListSourceTakes.Items[gListSourceTakes.ItemIndex]        
         dstTake = gListDestTakes.Items[gListDestTakes.ItemIndex] if gListDestTakes.ItemIndex >= 0 else 0
         
+        try:
+        
         MakeTransitionB(CHAR_NAMESPACE, srcTake, dstTake)
+
+        except Exception as e:
+            FBMessageBox(TOOL_TITLE, e.message, 'Ok')
+            raise
+            
 
 def EventButtonPutSegAClick(control, event):
     
@@ -473,7 +491,9 @@ def EventButtonPutSegAClick(control, event):
     currTake.SetTimeMarkName(idx, FOOTSTEP_MARK_NAME)
     
 def EventButtonPutSegBClick(control, event):
-    pass
+    
+    # TODO: at the moment we do only one label
+    EventButtonPutSegAClick(control, event)
     
 def GetRootDistance(model, timeA, timeB):
     
@@ -492,24 +512,31 @@ def GetRootDistance(model, timeA, timeB):
 
 def EventButtonComputeSpeedClick(control, event):
     
-    lRoot = FBFindModelByLabelName('whitetail_rig:Reference')
-    if lRoot is None:
-        print 'failed to find a root node'
-        return
+    dist1 = 0.0
+    speed1 = 0.0
 
-    lSrcTake = lSystem.CurrentTake
-    numberOfMarks = lSrcTake.GetTimeMarkCount()
-    if numberOfMarks < 2:
-        print 'failed to find two segments in src clip'
-        return
+    try:
 
-    segA = [lSrcTake.GetTimeMarkTime(0), lSrcTake.GetTimeMarkTime(1)]
+        root_model = FindRootModel()
+        if root_model is None:
+            raise Exception('failed to find a root node')
         
-    distA = GetRootDistance(lRoot, segA[0], segA[1])
-    print distA
-    timeA = segA[1].GetSecondDouble() - segA[0].GetSecondDouble()
-    speedA = distA / timeA
-    print speedA
+        src_take = lSystem.CurrentTake
+        number_of_marks = src_take.GetTimeMarkCount()
+        if number_of_marks < 2:
+            raise Exception('failed to find two time marks in src clip {}'.format(src_take.Name))
+
+        segA = [src_take.GetTimeMarkTime(0), src_take.GetTimeMarkTime(1)]   
+        
+        dist1 = GetRootDistance(root_model, segA[0], segA[1])
+        time1 = segA[1].GetSecondDouble() - segA[0].GetSecondDouble()
+        speed1 = dist1 / time1
+  
+    except Exception as e:
+        FBMessageBox(TOOL_TITLE, e.message, 'Ok')
+        raise
+    else:
+        FBMessageBox(TOOL_TITLE, 'Root distance {} and speed {}'.format(dist1, speed1), 'Ok')
 
 def ChangeSourceWarp(warpNode, origin, originValue, speedA, speedB, transition_time, is_reverse):
 
@@ -592,8 +619,8 @@ def EventButtonTestClick(control, event):
         
         # root node
         
-        lRoot = FBFindModelByLabelName('whitetail_rig:Reference')
-        if lRoot is None:
+        root_model = FindRootModel()
+        if root_model is None:
             print 'failed to find a root node'
             return
         
@@ -601,7 +628,7 @@ def EventButtonTestClick(control, event):
         
         lSystem.CurrentTake = lSrcTake
         
-        distA = GetRootDistance(lRoot, segA[0], segA[1])
+        distA = GetRootDistance(root_model, segA[0], segA[1])
         timeA = segA[1].GetSecondDouble() - segA[0].GetSecondDouble()
         speedA = distA / timeA
         
@@ -616,7 +643,7 @@ def EventButtonTestClick(control, event):
         
         lSystem.CurrentTake = lDstTake
         
-        distB = GetRootDistance(lRoot, segB[0], segB[1])
+        distB = GetRootDistance(root_model, segB[0], segB[1])
         timeB = segB[1].GetSecondDouble() - segB[0].GetSecondDouble()
         speedB = distB / timeB
         
@@ -690,8 +717,8 @@ def EventButtonMakeBlendClick(control, event):
         
         # root node
         
-        lRoot = FBFindModelByLabelName('whitetail_rig:Reference')
-        if lRoot is None:
+        root_model = FindRootModel()
+        if root_model is None:
             print 'failed to find a root node'
             return
         
@@ -699,7 +726,7 @@ def EventButtonMakeBlendClick(control, event):
         
         lSystem.CurrentTake = lSrcTake
         
-        distA = GetRootDistance(lRoot, segA[0], segA[1])
+        distA = GetRootDistance(root_model, segA[0], segA[1])
         timeA = segA[1].GetSecondDouble() - segA[0].GetSecondDouble()
         speedA = distA / timeA
         
@@ -714,7 +741,7 @@ def EventButtonMakeBlendClick(control, event):
         
         lSystem.CurrentTake = lDstTake
         
-        distB = GetRootDistance(lRoot, segB[0], segB[1])
+        distB = GetRootDistance(root_model, segB[0], segB[1])
         timeB = segB[1].GetSecondDouble() - segB[0].GetSecondDouble()
         speedB = distB / timeB
         
@@ -777,7 +804,7 @@ def EventButtonMakeBlendClick(control, event):
         #
         # root translation align
 
-        clips[1].Match('whitetail_rig:Reference', 
+        clips[1].Match(root_model.LongName, 
             FBStoryClipMatchingTimeType.kFBStoryClipMatchingTimeCurrentTime, 
             FBStoryClipMatchingTranslationType.kFBStoryClipMatchingTranslationGravityXZ, 
             FBStoryClipMatchingRotationType.kFBStoryClipMatchingRotationXYZ) 
@@ -1025,7 +1052,7 @@ def PopulateLayout(mainLyt):
 
 def CreateTool():    
     # Tool creation will serve as the hub for all other controls
-    t = FBCreateUniqueTool("Check Transitions Tool")
+    t = FBCreateUniqueTool(TOOL_TITLE)
     PopulateLayout(t)
     t.StartSizeX = 800
     t.StartSizeY = 600

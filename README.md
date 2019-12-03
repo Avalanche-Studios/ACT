@@ -36,7 +36,7 @@ Put directly into MotionBuilder installation directory - as usual it’s C:\Prog
 #### Package Installation
  From a releases installation package, the scripts will be automatically copied into a motionbuilder startup folder in “my documents\MB\<version>\config\PythonStartup” directory
 
-#### Common_Public
+#### public_common
   This is a startup python script.
   The script is a set of functions and constants which are project / pipeline specified. Public version of this values are functions that have a general use case, but they could extend much other scripts functionality. Examples of such a common functions: get project path, get plugin path, make a project relative path, get project output path, etc.
 

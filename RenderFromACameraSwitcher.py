@@ -2,16 +2,19 @@
 #--------------------------------------------------------------------------------------
 # File: RenderFromACameraSwitcher.py
 #
-# The script has a project/pipeline specified functions, the legacy realization of them are listened in Common_Public.py. Please see “How to Use” section for more information.
+# The script has a project/pipeline specified functions, the legacy realization of them are listened in public_common.py. 
+# Please see "How to Use" section for more information.
+#
+# NOTE: The script is created to work with 60 fps scene files!
 #
 # This is an action script.
 #  The script will switch to camera switcher and render scene into a file
 # Features:
 # * It will use *.mov format and x264 codec
 # * If you have p4 (perforce) module installed, you can add renderer file into a new change list
-# * in Common_Public.py you can find general pipeline function for sanitize relative path to your project
-#      and a function to build an export file path out of your scene file
-#  Customize these function depends on your needs.
+# * in public_common.py you can find general pipeline function for sanitize relative path to your project
+#      and a function to add render files to your version control system
+#  Customize public_common functions depends on your needs.
 #
 # Copyright (c) Avalanche Studios. All rights reserved.
 # Licensed under the MIT License.
@@ -20,30 +23,13 @@
 import os
 from pyfbsdk import *
 
-import Common_Public
+from project_common import GetSanitizedRelPath, AddFileToChangeList
 
 g_System = FBSystem()
 g_App = FBApplication()
 
 g_TimeStep = 1 # for 60 fps animation file, put 2 here to have 30 fps output video
 g_RenderAudio = True
-
-# if we have perforce, lets create a new change list automaticaly
-try:
-    import p4cmd
-    
-    def AddFileToChangeList(f):
-        # Create a fancy file name
-        rel_path = GetSanitizedRelPath()
-        # Only change changelist if the changelist is default
-        # Adds the files to the changelist if theyre not already checked out
-        p4cmd.edit(str(f), timeout=10, description="Motionbuilder Export from <{}>".format(str(rel_path)))
-
-except:
-    def AddFileToChangeList(f):
-        print('[RenderFromCameraSwitcher] Perforce library is not found')
-        pass
-
 
 # DONE: Render camera switcher
 def RenderTake(file_name):
@@ -108,4 +94,5 @@ else:
         g_System.Renderer.SetCameraSwitcherInPane(index, True)    
     
     RenderTake(export_path)
-    AddFileToChangeList(export_path)
+    rel_path = GetSanitizedRelPath(export_path)
+    AddFileToChangeList(file_name=export_path, description="Motionbuilder Export from <{}>".format(str(rel_path)))

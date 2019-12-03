@@ -24,14 +24,14 @@ Print Animated Takes For Selection
 
 Render From A Camera Switcher
 ----------------------------
-  The script has a project/pipeline specified functions, the legacy realization of them are listened in Common_Public.py. Please see “How to Use” section for more information.
+  The script has a project/pipeline specified functions, the legacy realization of them are listened in public_common.py. Please see “How to Use” section for more information.
 
  This is an action script.
    The script will switch to camera switcher and render scene into a file
   Features:
   * It will use *.mov format and x264 codec
   * If you have p4 (perforce) module installed, you can add renderer file into a new change list
-  * in Common_Public.py you can find general pipeline function for sanitize relative path to your project
+  * in public_common.py you can find general pipeline function for sanitize relative path to your project
        and a function to build an export file path out of your scene file
    Customize these function depends on your needs.
    
