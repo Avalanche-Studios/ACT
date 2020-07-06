@@ -29,7 +29,7 @@ User Guide
 
 #### Manual Installation
   There are several ways to make motionbuilder execute scripts on startup:
-Put into “my documents” directory for motionbuilder - as usual it’s <my documents>\MB\<version>\config\PythonStartup
+Put into “My Documents” directory for motionbuilder - as usual it’s <My Documents>\MB\<version>\config\PythonStartup
 Add a path into an environment variable MOTIONBUILDER_PYTHON_STARTUP. That task could be done with an GUI helper tool ConfigApp, that could be found in github repository - https://github.com/Neill3d/MoBu_ConfigApp 
 Put directly into MotionBuilder installation directory - as usual it’s C:\Program Files\Autodesk\MotionBuilder <version>\bin\config\PythonStartup. This way is not preferable
 
