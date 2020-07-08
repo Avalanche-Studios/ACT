@@ -18,7 +18,7 @@ For more detailed information, please, have a look in a FBExt_DrivenKeys documen
 Marker Wire
 -------------------
 
-[![MarkerWire](https://github.com/Avalanche-Studios/ACT/blob/master/docs/images/marker_wire.jpg)]()
+[![MarkerWire](https://github.com/Avalanche-Studios/ACT/blob/master/docs/images/marker_wire.JPG)]()
 
 This is a Custom Marker Scene Object which extends functionality of normal Marker object with visible wire connections to specified list of objects.
 Could be useful to track look at point direction, for example.
