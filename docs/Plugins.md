@@ -38,8 +38,25 @@ Use CMake 3.1 or higher to prepare solution and project files to build plugins
 To Build MotionBuilder plugins you need OpenReality SDK which is always included in a MotinBuilder distributive.
 To build Maya plugins you need Maya DevKit and to build Maya FBX Extension plugin you need FBX Extension SDK.
 
+CMake Configuration
+--------------------------
+
+On first run of configuration, don't forget to choose a x64 compiler version.
+
+To compile motionbuilder plugin, you should set paths to your MotionBuilder OpenReality SDK sub folders
+ORSDK_INCLUDE_PATH - <your OpenReality SDK>/include
+ORSDK_LIB_PATH - <your OpenReality SDK>/lib/x64
+
+To copile maya plugin, you should set paths to you Maya DevKit sub folders
+DEVKIT_INCLUDE_PATH - <your DevKit>/include
+DEVKIT_LIB_PATH - <your DevKit>/lib
+
+When press "Configure", CMake script will do check for needed header and library files and assign all other variables automaticaly.
+
 Default Plugin locations
 --------------------------
+
+ These are locations or environment variables that could help you to make Maya or MotionBuilder start using your binaries.
 
 For plugins:
 Maya:        plugin you can load by using Windows->Settings/Preferences->Plugin-in Manager
@@ -63,3 +80,5 @@ For FBX Extension plugins
 
 Maya:            MAYA_FBX_EXTENSION_PATH
 MotionBuilder:   MOBU_FBX_EXTENSION_PATH
+
+ There is a small manager, that could help you to set up environment variables for MotionBuilder - https://github.com/Neill3d/MoBu_ConfigApp
