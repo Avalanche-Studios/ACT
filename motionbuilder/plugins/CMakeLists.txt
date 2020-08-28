@@ -3,12 +3,21 @@ project(ACT 	VERSION 1.0
 				DESCRIPTION "Avalanche Content Toolset"
 				LANGUAGES CXX)
 
+# Live Bridge Library
+include_directories(".")
+ADD_LIBRARY( AnimLiveBridgeLib STATIC 
+			AnimLiveBridge/AnimLiveBridge.cpp
+)
+
 # MoBu Plugins
 
 include("./cmake/MoBu.cmake")
 ADD_MOBU_PLUGIN("MarkerWire")
 ADD_MOBU_PLUGIN("RelationBoxes")
 ADD_MOBU_FBX_PLUGIN("DrivenKeys_MB" "DrivenKeys_Shared")
+
+Add_MOBU_PLUGIN("Device_LiveBridge" "tinyxml")
+TARGET_LINK_LIBRARIES("Device_LiveBridge" AnimLiveBridgeLib)
 
 # Maya Plugins
 
