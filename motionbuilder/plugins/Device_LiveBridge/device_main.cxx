@@ -37,6 +37,8 @@
 	#include <windows.h>
 #endif
 
+#include <AnimLiveBridge/AnimLiveBridge.h>
+
 //--- Library declaration
 FBLibraryDeclare( devicebridge )
 {
@@ -51,8 +53,36 @@ FBLibraryDeclareEnd;
 /************************************************
  *	Library functions.
  ************************************************/
+
+class CDeviceLiveBridgeLogger : public CLiveBridgeLogger
+{
+public:
+	void LogInfo(const char* info) override
+	{
+		FBTrace("%s\n", info);
+	}
+	void LogWarning(const char* info) override
+	{
+		FBTrace("Warning! %s\n", info);
+	}
+	void LogError(const char* info) override
+	{
+		FBTrace("ERROR!! %s\n", info);
+	}
+};
+
+static CDeviceLiveBridgeLogger		g_Logger;
+
 bool FBLibrary::LibInit()	{ return true; }
-bool FBLibrary::LibOpen()	{ return true; }
+bool FBLibrary::LibOpen()	
+{ 
+	SetLiveBridgeLogger(&g_Logger);
+	return true; 
+}
 bool FBLibrary::LibReady()	{ return true; }
-bool FBLibrary::LibClose()	{ return true; }
+bool FBLibrary::LibClose()	
+{
+	SetLiveBridgeLogger(nullptr);
+	return true; 
+}
 bool FBLibrary::LibRelease(){ return true; }

@@ -40,16 +40,11 @@
  ************************************************/
 CServerHardware::CServerHardware()
 {
-	mMapFile = NULL;
-	//mExportFile		= NULL;
 	mCounter		= 0;
-	mFileOpen		= false;
-   
-	mHasNewSync = false;
-	mSyncSaved = false;
+	m_SessionId = NewLiveSession();
+	m_TimelineSync = MapTimelineSync(m_SessionId);
 
-	mData = new NAnimationLiveBridge::SSharedModelData();
-	memset(mData, 0, sizeof(NAnimationLiveBridge::SSharedModelData));
+	m_Data = new SSharedModelData();
 }
 
 
@@ -58,10 +53,12 @@ CServerHardware::CServerHardware()
  ************************************************/
 CServerHardware::~CServerHardware()
 {
-	if (mData)
+	EraseLiveSession(m_SessionId);
+
+	if (m_Data)
 	{
-		delete mData;
-		mData = nullptr;
+		delete m_Data;
+		m_Data = nullptr;
 	}
 }
 
@@ -71,60 +68,16 @@ CServerHardware::~CServerHardware()
  ************************************************/
 bool CServerHardware::Open(const char* pair_name)
 {
-	mMapFile = CreateFileMapping(
-		INVALID_HANDLE_VALUE,    // use paging file
-		NULL,                    // default security
-		PAGE_READWRITE,          // read/write access
-		0,                       // maximum object size (high-order DWORD)
-		sizeof(NAnimationLiveBridge::SSharedModelData),                // maximum object size (low-order DWORD)
-		FBString(SHARED_MAPPING_PREFIX, pair_name));                 // name of mapping object
+	const int status = HardwareOpen(m_SessionId, pair_name, true);
 
-	mEventToClient = CreateEvent(NULL, false, false, FBString(pair_name, EVENT_TOCLIENT));
-	mEventFromClient = CreateEvent(NULL, false, true, FBString(pair_name, EVENT_FROMCLIENT));
-
-	mFileOpen = true;
-	
-	if (mMapFile == NULL)
+	if (status != 0)
 	{
-		_tprintf(TEXT("Could not create file mapping object (%d).\n"),
-			GetLastError());
-
-		mFileOpen = false;
+		FBTrace("Could not create file mapping object (%d).\n", status);
 		FBMessageBox("Server Hardware", "Please start MoBu with administrative rights", "Ok");
-	}
-
-	if (mFileOpen)
-	{
-		char *pBuf = (char*)MapViewOfFile(mMapFile,
-			FILE_MAP_WRITE, // write permission
-			0,
-			0,
-			sizeof(NAnimationLiveBridge::SSharedModelData));
-
-		if (pBuf == nullptr)
-		{
-			CloseHandle(mMapFile);
-			_tprintf(TEXT("Could not map a file (%d).\n"), GetLastError());
-
-			mFileOpen = false;
-			//return false;
-		}
-		else
-		{
-			memset(pBuf, 0, sizeof(NAnimationLiveBridge::SSharedModelData));
-			UnmapViewOfFile(pBuf);
-		}
+		return false;
 	}
 	
-	if (!SetEvent(mEventToClient))
-	{
-		_tprintf(TEXT("Could not set event to a client (%d).\n"),
-			GetLastError());
-
-		FBMessageBox("Server Hardware", "Could not set event to a client", "Ok");
-		//return false;
-	}
-
+	m_TimelineSync = MapTimelineSync(m_SessionId);
 	return true;
 }
 
@@ -143,11 +96,8 @@ bool CServerHardware::GetSetupInfo()
  ************************************************/
 bool CServerHardware::Close()
 {
-    if( mFileOpen )
-    {
-		CloseHandle(mMapFile);
-	    mFileOpen = false;
-    }
+	UnMapTimelineSync(m_SessionId);
+	HardwareClose(m_SessionId);
 	return true;
 }
 
@@ -202,83 +152,50 @@ bool CServerHardware::SendDataPacket(FBTime &pTime)
 	// High priority IO thread, must have minimal CPU usage.
 	// Non-blocking IO, send data to hardware via comm port, network, etc.
 	
-	if (false == mFileOpen)
-		return false;
-
-	bool signalled = WaitForSingleObjectEx(mEventFromClient, 0, false) != WAIT_TIMEOUT;
-
-	if (true == signalled)
+	if (SSharedModelData* model_data = MapModelData(m_SessionId))
 	{
-		char *pBuf = (char*)MapViewOfFile(mMapFile,
-			FILE_MAP_ALL_ACCESS, // write permission
-			0,
-			0,
-			sizeof(NAnimationLiveBridge::SSharedModelData));
+		memcpy(model_data, m_Data, sizeof(SSharedModelData));
+		UnMapModelData(m_SessionId);
 
-		if (pBuf == nullptr)
+		const int error_code = FlushData(m_SessionId, true);
+
+		if (error_code != 0)
 		{
+			//FBTrace("Failed to Flush Server Data with error code %d and session id %d\n", error_code, m_SessionId);
 			return false;
 		}
-
-		// read a client time and sync with a server time
-		NAnimationLiveBridge::SSharedModelData *pData = (NAnimationLiveBridge::SSharedModelData*)pBuf;
-		
-		mTimeChangeManager.ReadFromData(false, *pData);
-		mTimeChangeManager.WriteToData(true, *mData);
-
-		for (int i = 0; i < 4; ++i)
+		else
 		{
-			mData->m_LookAtRoot[i] = pData->m_LookAtRoot[i];
-			mData->m_LookAtLeft[i] = pData->m_LookAtLeft[i];
-			mData->m_LookAtRight[i] = pData->m_LookAtRight[i];
+			//FBTrace("Flush Server Data succeed for session %d\n", m_SessionId);
 		}
-			
-		// check if we have sync event from a client
-		if (mData->m_LookAtRoot[3] == 1.0f)
-		{
-			mHasNewSync = true;
-			mData->m_LookAtRoot[3] = 0.0f;
-		}
-		else if (mSyncSaved)
-		{
-			mData->m_LookAtRoot[3] = 2.0f;
-		}
-		mSyncSaved = false;
-	
-		CopyMemory((PVOID)pBuf, mData, sizeof(char)*sizeof(NAnimationLiveBridge::SSharedModelData));
-
-		UnmapViewOfFile(pBuf);
-
-		//
-		mLookAtRootPos = FBVector3d((double)mData->m_LookAtRoot[0], (double)mData->m_LookAtRoot[1], (double)mData->m_LookAtRoot[2]);
-		mLookAtLeftPos = FBVector3d((double)mData->m_LookAtLeft[0], (double)mData->m_LookAtLeft[1], (double)mData->m_LookAtLeft[2]);
-		mLookAtRightPos = FBVector3d((double)mData->m_LookAtRight[0], (double)mData->m_LookAtRight[1], (double)mData->m_LookAtRight[2]);
-
-		//
-		SetEvent(mEventToClient);
+		return true;
+	}
+	else
+	{
+		FBTrace("Failed to MapModelData for session %d\n", m_SessionId);
 	}
 
-	return true;
+	return false;
 }
 
 
 void CServerHardware::SetNumberOfActiveModels(const int count)
 {
-	mData->m_Header.m_ModelsCount = count;
+	m_Data->m_Header.m_ModelsCount = count;
 }
 
 void CServerHardware::SetModelName(const int index, const char* name)
 {
-	mData->m_Joints[index].m_NameHash = static_cast<uint32_t>(std::hash<std::string>{}(name));
+	m_Data->m_Joints.m_Data[index].m_NameHash = static_cast<uint32_t>(std::hash<std::string>{}(name));
 }
 unsigned int CServerHardware::GetModelNameHash(const int index)
 {
-	return mData->m_Joints[index].m_NameHash;
+	return m_Data->m_Joints.m_Data[index].m_NameHash;
 }
 
 void CServerHardware::SetNumberOfActiveProperties(const int count)
 {
-	mData->m_Header.m_PropsCount = count;
+	m_Data->m_Header.m_PropsCount = count;
 }
 
 /************************************************
@@ -286,7 +203,7 @@ void CServerHardware::SetNumberOfActiveProperties(const int count)
  ************************************************/
 void CServerHardware::WritePos( const int index, const double* pPos )
 {
-	float* dst_values = mData->m_Joints[index].m_Transform.m_Translation;
+	float* dst_values = &m_Data->m_Joints.m_Data[index].m_Transform.m_Translation.m_X;
 
 	dst_values[0] = static_cast<float>(pPos[0]);
 	dst_values[1] = static_cast<float>(pPos[1]);
@@ -299,7 +216,7 @@ void CServerHardware::WritePos( const int index, const double* pPos )
 void CServerHardware::WriteRot( const int index, const double* pRot )
 {
 	// combine with pre-rotation
-	float* dst_values = mData->m_Joints[index].m_Transform.m_Rotation;
+	float* dst_values = &m_Data->m_Joints.m_Data[index].m_Transform.m_Rotation.m_X;
 
 	dst_values[0] = static_cast<float>(pRot[0]);
 	dst_values[1] = static_cast<float>(pRot[1]);
@@ -316,18 +233,31 @@ void CServerHardware::WriteMatrix(const int index, const FBMatrix& tm)
 
 	FBMatrixToTQS(t, q, s, tm);
 
-	NAnimationLiveBridge::SSharedModelData::SJointData& info = mData->m_Joints[index];
+	SJointData& info = m_Data->m_Joints.m_Data[index];
 	
+	float* translation = &info.m_Transform.m_Translation.m_X;
+	float* rotation = &info.m_Transform.m_Rotation.m_X;
+
 	for (int i = 0; i < 3; ++i)
 	{
-		info.m_Transform.m_Translation[i] = static_cast<float>(t[i]);
-		info.m_Transform.m_Rotation[i] = static_cast<float>(q[i]);
+		translation[i] = static_cast<float>(t[i]);
+		rotation[i] = static_cast<float>(q[i]);
 	}
 
-	info.m_Transform.m_Rotation[3] = static_cast<float>(q[3]);
+	rotation[3] = static_cast<float>(q[3]);
 }
 
 void CServerHardware::WriteProp(const int index, const double value)
 {
-	mData->m_Properties[index].m_Value = static_cast<float>(value);
+	m_Data->m_Properties.m_Data[index].m_Value = static_cast<float>(value);
+}
+
+void CServerHardware::SyncSaved() 
+{ 
+	SetSyncSaved(m_SessionId, true);
+}
+
+bool CServerHardware::HasNewSync()
+{
+	return GetAndResetHasNewSync(m_SessionId);
 }

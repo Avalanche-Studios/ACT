@@ -30,6 +30,7 @@
 
 //--- Class declaration
 #include "server_device.h"
+#include "AnimLiveBridge/AnimLiveBridge.h"
 
 //--- Device strings
 #define SERVERDEVICE__CLASS		SERVERDEVICE__CLASSNAME
@@ -85,11 +86,15 @@ bool CServerDevice::FBCreate()
 
 	FBPropertyPublish(this, SaveRotationSetup, "Save Rotation Setup", nullptr, ActionSaveRotationSetup);
 
+	FBPropertyPublish(this, RotationIncludeDOF, "Rotation Include DOF", nullptr, nullptr);
+
 	FBPropertyPublish(this, LookAtRoot, "LookAt Root", nullptr, nullptr);
 	FBPropertyPublish(this, LookAtLeft, "LookAt Left", nullptr, nullptr);
 	FBPropertyPublish(this, LookAtRight, "LookAt Right", nullptr, nullptr);
 	FBPropertyPublish(this, ImportTarget, "Import Target", nullptr, ActionImportTarget);
 	FBPropertyPublish(this, ExportTarget, "Export Target", nullptr, ActionExportTarget);
+
+	RotationIncludeDOF = false;
 
 	//
 	LookAtRoot.SetSingleConnect(true);
@@ -349,6 +354,39 @@ bool CServerDevice::AnimationNodeNotify(FBAnimationNode* pAnimationNode ,FBEvalu
 /************************************************
  *	Device Evaluation Notify.
  ************************************************/
+void CServerDevice::ComputeFullRotationMatrix(FBMatrix& tm, FBEvaluateInfo* pEvaluateInfo, const int index)
+{
+	if (FBModel* pModel = mDataChannels.GetChannelModel(index))
+	{
+		FBMatrix pretm;
+		pModel->GetMatrix(tm, kModelTransformation, false, pEvaluateInfo);
+
+		FBTVector v;
+		FBRVector r;
+		FBSVector s;
+
+		{
+			// world scene pre rotation
+			FBRotationToMatrix(pretm, FBRVector(0.0, 90.0, 0.0));
+			FBMatrixMult(tm, pretm, tm);
+
+			pModel->GetMatrix(tm, kModelTransformation, true, pEvaluateInfo);
+		}
+
+		// model pre rotation
+		FBVector3d preRotation = pModel->PreRotation;
+		FBRotationToMatrix(pretm, preRotation);
+		
+		if (FBModel* parent = pModel->Parent)
+		{
+			FBMatrix parent_tm;
+			parent->GetMatrix(parent_tm, kModelTransformation, true, pEvaluateInfo);
+
+			FBGetLocalMatrix(tm, parent_tm, tm);
+		}
+	}
+}
+
 bool CServerDevice::DeviceEvaluationNotify(kTransportMode pMode, FBEvaluateInfo* pEvaluateInfo)
 {
 	using namespace NShared;
@@ -388,7 +426,7 @@ bool CServerDevice::DeviceEvaluationNotify(kTransportMode pMode, FBEvaluateInfo*
 						//if (i == 1)
 						{
 							// world scene pre rotation
-							FBRotationToMatrix(pretm, FBRVector(0.0, 90, 0.0));
+							FBRotationToMatrix(pretm, FBRVector(0.0, 90.0, 0.0));
 							FBMatrixMult(tm, pretm, tm);
 
 							pModel->GetMatrix(tm, kModelTransformation, true, pEvaluateInfo);
@@ -411,42 +449,10 @@ bool CServerDevice::DeviceEvaluationNotify(kTransportMode pMode, FBEvaluateInfo*
 					mHardware.WritePos(i, lPos);
 					mHardware.WriteRot(i, lRot);
 
-
-					if (FBModel* pModel = mDataChannels.GetChannelModel(i))
+					if (RotationIncludeDOF)
 					{
-						FBMatrix pretm, tm;
-						pModel->GetMatrix(tm, kModelTransformation, false, pEvaluateInfo);
-
-						FBTVector v;
-						FBRVector r;
-						FBSVector s;
-
-						//if (i == 1)
-						{
-							// world scene pre rotation
-							FBRotationToMatrix(pretm, FBRVector(0.0, 90, 0.0));
-							FBMatrixMult(tm, pretm, tm);
-
-							pModel->GetMatrix(tm, kModelTransformation, true, pEvaluateInfo);
-						}
-
-						// model pre rotation
-						FBVector3d preRotation = pModel->PreRotation;
-						FBRotationToMatrix(pretm, preRotation);
-						//FBMatrixMult(tm, pretm, tm);
-
-						if (FBModel* parent = pModel->Parent)
-						{
-							FBMatrix parent_tm;
-							parent->GetMatrix(parent_tm, kModelTransformation, true, pEvaluateInfo);
-
-							FBGetLocalMatrix(tm, parent_tm, tm);
-						}
-
-						FBMatrixToTRS(v, r, s, tm);
-
-						//mHardware.WritePos(i, v);
-						//mHardware.WriteRot(i, r);
+						FBMatrix tm;
+						ComputeFullRotationMatrix(tm, pEvaluateInfo, i);
 						mHardware.WriteMatrix(i, tm);
 					}
 				}
@@ -473,17 +479,20 @@ void CServerDevice::DeviceIONotify( kDeviceIOs  pAction,FBDeviceNotifyInfo &pDev
 		case kIOPlayModeWrite:
 		case kIOStopModeWrite:
 		{
-			const bool is_stop = pDeviceNotifyInfo.GetEvaluateInfo().IsStop();
-			mHardware.mTimeChangeManager.SetIsPlaying(is_stop == false);
+			const bool is_playing = mPlayerControl.IsPlaying; //  pDeviceNotifyInfo.GetEvaluateInfo().IsStop();
+			mHardware.GetTimelineSync()->SetLocalTime(lEvalTime.GetSecondDouble());
+			mHardware.GetTimelineSync()->SetIsPlaying(is_playing);
 
-			mHardware.mTimeChangeManager.CheckLocalTimeline();
+			mHardware.GetTimelineSync()->SetLocalTimeline(lEvalTime.GetSecondDouble(), is_playing);
 
 			//lEvalTime = pDeviceNotifyInfo.GetSystemTime();
 			mHardware.SendDataPacket( lEvalTime );
 			
-			if (mHardware.mTimeChangeManager.IsRemoteTimeChanged())
+			if (mHardware.GetTimelineSync()->IsRemoteTimeChanged())
 			{
-				pDeviceNotifyInfo.SetLocalTime(mHardware.mTimeChangeManager.GetRemoteTime());
+				FBTime remote_time;
+				remote_time.SetSecondDouble(mHardware.GetTimelineSync()->GetRemoteTime());
+				pDeviceNotifyInfo.SetLocalTime(remote_time);
 
 				mHardware.SendDataPacket(lEvalTime);
 				//mHardware.ResetTimeChange();
@@ -577,7 +586,15 @@ void CServerDevice::EventUIIdle(HISender pSender, HKEvent pEvent)
 			}
 		}
 
-		mHardware.mTimeChangeManager.OnUIIdle();
+		double remote_time{ 0.0 };
+		FBTime local_time = mSystem.LocalTime;
+		const bool is_playing = mPlayerControl.IsPlaying;
+
+		if (mHardware.GetTimelineSync()->CheckForARemoteTimeControl(remote_time, local_time.GetSecondDouble(), is_playing))
+		{
+			local_time.SetSecondDouble(remote_time);
+			mPlayerControl.Goto(local_time);
+		}
 	}
 }
 
@@ -615,7 +632,7 @@ void CServerDevice::DoExportTarget()
 
 	ExportTargetAnimation(pRootModel, pModel, (FBModel*)LookAtLeft.GetAt(0), (FBModel*)LookAtRight.GetAt(0));
 
-	mHardware.SetSyncSaved();
+	mHardware.SyncSaved();
 }
 
 void CServerDevice::DoSaveRotationSetup()

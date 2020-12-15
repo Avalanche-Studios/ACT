@@ -38,27 +38,22 @@
  *	Constructor.
  ************************************************/
 CClientHardware::CClientHardware() 
-	: mChannelCount( 0 )
-	, mCounter( 0 )
+	: m_ChannelCount( 0 )
+	, m_Counter( 0 )
 {
-	mFileOpen = false;
-	mTimeChanged = false;
+	m_TimeChanged = false;
 	
-	mHasNewSync = false;
-	mSyncSaved = false;
-
-	mData = new NAnimationLiveBridge::SSharedModelData();
-	memset(mData, 0, sizeof(NAnimationLiveBridge::SSharedModelData));
-
 	for (int i = 0; i < MAX_CHANNEL; ++i)
 	{
 		for (int j = 0; j < DATA_TYPE_COUNT; ++j)
 		{
-			mChannelData[i][j] = 0.0;
+			m_ChannelData[i][j] = 0.0;
 		}
+		m_ChannelNameHash[i] = 0;
 	}
 
-	mDataReceived = false;
+	m_SessionId = NewLiveSession();
+	m_DataReceived = false;
 }
 
 
@@ -67,11 +62,7 @@ CClientHardware::CClientHardware()
  ************************************************/
 CClientHardware::~CClientHardware()
 {
-	if (mData)
-	{
-		delete mData;
-		mData = nullptr;
-	}
+	EraseLiveSession(m_SessionId);
 }
 
 
@@ -80,25 +71,15 @@ CClientHardware::~CClientHardware()
  ************************************************/
 bool CClientHardware::Open(const char* pair_name)
 {
-	mMapFile = OpenFileMapping(
-		FILE_MAP_ALL_ACCESS, // read/write access
-		FALSE, // don't inherit the name
-		FBString(SHARED_MAPPING_PREFIX, pair_name)	// name of mapping object
-		);
+	const int status = HardwareOpen(m_SessionId, pair_name, false);
 
-	mFileOpen = true;
-	
-	if (mMapFile == NULL)
+	if (status != 0)
 	{
-		_tprintf(TEXT("Could not create file mapping object (%d).\n"),
-			GetLastError());
-		
-		mFileOpen = false;
+		FBTrace("[Client Hardware] Could not create file mapping object (%d).\n", status);
 		FBMessageBox("Client Hardware", "Please start MoBu with administrative rights", "Ok");
+		return false;
 	}
-
-	mEventToClient = CreateEvent(NULL, false, false, FBString(pair_name, EVENT_TOCLIENT));
-	mEventFromClient = CreateEvent(NULL, false, false, FBString(pair_name, EVENT_FROMCLIENT));
+	m_TimelineSync = MapTimelineSync(m_SessionId);
 
 	return true;
 }
@@ -111,11 +92,13 @@ bool CClientHardware::GetSetupInfo()
 {
 	using namespace NShared;
 	
-	mChannelCount	= GetSetJointsCount();
+	m_ChannelCount	= GetSetJointsCount();
 
-	for (int i = 0; i < mChannelCount; ++i)
+	for (int i = 0; i < m_ChannelCount; ++i)
 	{
-		mChannelName[i] = GetTestJointName(i);
+		const char* name{ GetTestJointName(i) };
+		m_ChannelName[i] = name;
+		m_ChannelNameHash[i] = HashPairName(name);
 	}
 
 	return true;
@@ -127,11 +110,8 @@ bool CClientHardware::GetSetupInfo()
  ************************************************/
 bool CClientHardware::Close()
 {
-	if (mFileOpen)
-	{
-		CloseHandle(mMapFile);
-		mFileOpen = false;
-	}
+	UnMapTimelineSync(m_SessionId);
+	HardwareClose(m_SessionId);
 	return true;
 }
 
@@ -147,11 +127,12 @@ bool CClientHardware::FetchDataPacket(FBTime &pTime)
 
 	// TODO: Replace this bogus code with real NON-BLOCKING TCP, UDP or serial calls
 	// to your data server.
-	PollData();
+	if (!PollData())
+		return false;
 
-	if (mTimeChanged)
+	if (m_TimeChanged)
 	{
-		pTime = mLocalTime;
+		pTime = m_LocalTime;
 	}
 
 	// As soon as enough bytes have been read to have data for all makers,
@@ -160,7 +141,7 @@ bool CClientHardware::FetchDataPacket(FBTime &pTime)
 	// as soon as the current data frame is processed.
 
 	// TODO: mCounter is a bogus variable there to simulate a time-reference
-	if(mCounter%2)
+	if(m_Counter%2)
 	{
 		return true; // data for all elements of mChannelData[] has been found.
 	}
@@ -183,79 +164,50 @@ bool CClientHardware::PollData()
 	//- followed by a rotation around the 'Y' axis
 	//- followed by a rotation around the 'Z' axis
 
-	mCounter++;
+	m_Counter++;
 	
-	if (false == mFileOpen)
-		return false;
-
-	bool signalled = WaitForSingleObjectEx(mEventToClient, 0, false) != WAIT_TIMEOUT;
-
-	if (true == signalled)
+	const int error_code = FlushData(m_SessionId, false);
+	if (error_code == 0)
 	{
-		char *pBuf = (char*)MapViewOfFile(mMapFile,
-			FILE_MAP_ALL_ACCESS,
-			0,
-			0,
-			sizeof(NAnimationLiveBridge::SSharedModelData));
-
-		if (pBuf == nullptr)
-		{
-			return false;
-		}
-
-		NAnimationLiveBridge::SSharedModelData* pData = (NAnimationLiveBridge::SSharedModelData*)pBuf;
-
-		mTimeChangeManager.ReadFromData(true, *pData);
-		mTimeChangeManager.WriteToData(false, *pData);
-
-		// check if we have sync event from a server
-		if (pData->m_LookAtRoot[3] == 2.0f)
-		{
-			mHasNewSync = true;
-		}
-
-		// look at pos
-		pData->m_LookAtRoot[0] = (float)mLookAtRootPos[0];
-		pData->m_LookAtRoot[1] = (float)mLookAtRootPos[1];
-		pData->m_LookAtRoot[2] = (float)mLookAtRootPos[2];
-		pData->m_LookAtRoot[3] = (mSyncSaved) ? 1.0f : 0.0f;
-		
-		pData->m_LookAtLeft[0] = (float)mLookAtLeftPos[0];
-		pData->m_LookAtLeft[1] = (float)mLookAtLeftPos[1];
-		pData->m_LookAtLeft[2] = (float)mLookAtLeftPos[2];
-		
-		pData->m_LookAtRight[0] = (float)mLookAtRightPos[0];
-		pData->m_LookAtRight[1] = (float)mLookAtRightPos[1];
-		pData->m_LookAtRight[2] = (float)mLookAtRightPos[2];
-
-		mSyncSaved = false;
-
-		memcpy(mData, pData, sizeof(NAnimationLiveBridge::SSharedModelData));
-
-		UnmapViewOfFile(pBuf);
-
-		//
-
 		FBVector3d r;
 		FBQuaternion q;
 
-		const int count = mData->m_Header.m_ModelsCount;
+		SSharedModelData* data = MapModelData(m_SessionId);
+
+		const int count = data->m_Header.m_ModelsCount;
 		for (int i = 0; i < count; ++i)
 		{
-			for (int j = 0; j < 3; ++j)
+			// find a channel
+			for (int j = 0; j < m_ChannelCount; ++j)
 			{
-				mChannelData[i][DATA_TX + j] = static_cast<double>(mData->m_Joints[i].m_Transform.m_Translation[j]);
-				q[j] = static_cast<double>(mData->m_Joints[i].m_Transform.m_Rotation[j]);
-			}
-			q[3] = static_cast<double>(mData->m_Joints[i].m_Transform.m_Rotation[3]);
-			FBQuaternionToRotation(r, q);
+				if (m_ChannelNameHash[j] == data->m_Joints.m_Data[i].m_NameHash)
+				{
+					const float* joint_translation{ &data->m_Joints.m_Data[i].m_Transform.m_Translation.m_X };
+					const float* joint_rotation{ &data->m_Joints.m_Data[i].m_Transform.m_Rotation.m_X };
 
-			memcpy(&mChannelData[i][DATA_RX], r, sizeof(double) * 3);
+					for (int k = 0; k < 3; ++k)
+					{
+						m_ChannelData[j][DATA_TX + k] = static_cast<double>(joint_translation[k]);
+						q[k] = static_cast<double>(joint_rotation[k]);
+					}
+					q[3] = static_cast<double>(joint_rotation[3]);
+					FBQuaternionToRotation(r, q);
+
+					memcpy(&m_ChannelData[j][DATA_RX], r, sizeof(double) * 3);
+
+					break;
+				}
+			}
 		}
 
-		SetEvent(mEventFromClient);
+		SetFinishEvent(m_SessionId);
 
-		mDataReceived = true;
+		m_DataReceived = true;
+	}
+	else
+	{
+		//FBTrace("Failed to flush on client side, error code %d and session id %d\n", error_code, m_SessionId);
+		return false;
 	}
 	
 	return true;
@@ -275,4 +227,15 @@ bool CClientHardware::StartDataStream()
 bool CClientHardware::StopDataStream()
 {
 	return true;
+}
+
+
+void CClientHardware::SyncSaved() 
+{ 
+	SetSyncSaved(m_SessionId, true);
+}
+
+bool CClientHardware::HasNewSync() 
+{
+	return GetAndResetHasNewSync(m_SessionId);
 }

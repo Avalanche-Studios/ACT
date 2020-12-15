@@ -275,7 +275,7 @@ void CClientDeviceLayout::UIConfigure()
 {
 	SetBorder ("MainLayout", kFBStandardBorder, false,true, 1, 0,90,0);
 
-	mTabPanel.Items.SetString("Markers~Setup~Mapping");
+	mTabPanel.Items.SetString("Markers~Setup~Information");
 	mTabPanel.OnChange.Add( this, (FBCallback)&CClientDeviceLayout::EventTabPanelChange );
 
 	UIConfigureLayout0();

@@ -30,6 +30,7 @@
 //--- Class declaration
 #include "client_device.h"
 #include "shared.h"
+#include "AnimLiveBridge/AnimLiveBridge.h"
 #include <algorithm>
 
 //--- Registration defines
@@ -326,17 +327,21 @@ void CClientDevice::DeviceIONotify( kDeviceIOs pAction,FBDeviceNotifyInfo &pDevi
 			//
 			if (SyncTimeWithStoryClip)
 			{
-				mHardware.mTimeChangeManager.SetOffsetTime(GetTimeOffsetFromStoryClip());
+				FBTime time{ GetTimeOffsetFromStoryClip() };
+				mHardware.GetTimelineSync()->SetOffsetTime(time.GetSecondDouble());
 			}
 			else
 			{
-				mHardware.mTimeChangeManager.SetOffsetTime(FBTime::Zero);
+				mHardware.GetTimelineSync()->SetOffsetTime(0.0);
 			}
 
-			const bool is_stop = pDeviceNotifyInfo.GetEvaluateInfo().IsStop();
-			mHardware.mTimeChangeManager.SetIsPlaying(is_stop == false);
-
-			mHardware.mTimeChangeManager.CheckLocalTimeline();
+			const bool is_playing = mPlayerControl.IsPlaying; // pDeviceNotifyInfo.GetEvaluateInfo().IsStop();
+			
+			FBTime local_time{ mSystem.LocalTime };
+			mHardware.GetTimelineSync()->SetLocalTime(local_time.GetSecondDouble());
+			mHardware.GetTimelineSync()->SetIsPlaying(is_playing);
+			
+			mHardware.GetTimelineSync()->SetLocalTimeline(local_time.GetSecondDouble(), is_playing);
 
 			if (LookAtRoot.GetCount() > 0 && mDataChannels.GetRootTemplate()->Model
 				&& LookAtLeft.GetCount() > 0 && LookAtRight.GetCount() > 0)
@@ -375,7 +380,7 @@ void CClientDevice::DeviceIONotify( kDeviceIOs pAction,FBDeviceNotifyInfo &pDevi
 
 				if (mSyncSaved)
 				{
-					mHardware.SetSyncSaved();
+					mHardware.SyncSaved();
 					mSyncSaved = false;
 				}
 			}
@@ -383,16 +388,12 @@ void CClientDevice::DeviceIONotify( kDeviceIOs pAction,FBDeviceNotifyInfo &pDevi
 			// Input devices
 			while(mHardware.FetchDataPacket(lEvalTime))
 			{
-				if (mHardware.mTimeChangeManager.IsRemoteTimeChanged())
+				if (mHardware.GetTimelineSync()->IsRemoteTimeChanged())
 				{
-					pDeviceNotifyInfo.SetLocalTime(mHardware.mTimeChangeManager.GetRemoteTime());
-					//mHardware.ResetTimeChange();
+					pDeviceNotifyInfo.SetLocalTime(mHardware.GetTimelineSync()->GetRemoteTime());
 				}
 
-				//if( pAction == kIOPlayModeRead )
-				//{
-					DeviceRecordFrame	(lEvalTime,pDeviceNotifyInfo);
-				//}
+				DeviceRecordFrame	(lEvalTime,pDeviceNotifyInfo);
 				AckOneSampleReceived();
 			}
 		}
@@ -534,7 +535,15 @@ void CClientDevice::EventUIIdle(HISender pSender, HKEvent pEvent)
 			}
 		}
 
-		mHardware.mTimeChangeManager.OnUIIdle();
+		double remote_time{ 0.0 };
+		FBTime local_time = mSystem.LocalTime;
+		const bool is_playing = mPlayerControl.IsPlaying;
+
+		if (mHardware.GetTimelineSync()->CheckForARemoteTimeControl(remote_time, local_time.GetSecondDouble(), is_playing))
+		{
+			local_time.SetSecondDouble(remote_time);
+			mPlayerControl.Goto(local_time);
+		}
 	}
 }
 
@@ -572,7 +581,7 @@ void CClientDevice::DoExportTarget()
 
 	ExportTargetAnimation(pRootModel, pModel, (FBModel*)LookAtLeft.GetAt(0), (FBModel*)LookAtRight.GetAt(0));
 
-	mHardware.SetSyncSaved();
+	mHardware.SyncSaved();
 
 }
 

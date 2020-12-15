@@ -1,3 +1,20 @@
+
+Maya Plugins
+============
+
+Live Streaming
+-------------------
+
+  This is a python based plugin to start streaming joints transform and float properties values as a server for live bridge.
+
+  Python module AnimLiveBridge.py and dynamic library _AnimLiveBridge.pyd you should put into a place where Maya could catch it.
+
+  To work with a plugin you should select joint objects.
+  Float properties that you would like to stream should start with "float_"
+  
+  The Plugin registers two commands StartLive() / StopLive()
+
+
 MotionBuilder Plugins
 =====================
 

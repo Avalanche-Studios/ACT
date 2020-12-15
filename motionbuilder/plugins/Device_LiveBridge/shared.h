@@ -9,11 +9,8 @@
 
 #include <vector>
 
-#define SHARED_MAPPING_PREFIX	"Global\\"
-#define SHARED_MAPPING_DEFNAME	"AnimationBridgePair"
 
-#define EVENT_TOCLIENT           "_event_to_client"
-#define EVENT_FROMCLIENT         "_event_from_client"
+#define SHARED_MAPPING_DEFNAME	"AnimationBridgePair"
 
 #define SHARED_SYNC_TEMP_FILE	"\\bridge_syncTarget.fbx"
 
@@ -22,10 +19,10 @@
 #define LOOKAT_CTRL_LEFT		"LookAtCtrlLeft"
 #define LOOKAT_CTRL_RIGHT		"LookAtCtrlRight"
 
-namespace NAnimationLiveBridge
-{
+
 	struct SSharedModelData;
-};
+	struct STimelineSyncManager;
+
 
 
 ///////////////////////////////////////////////////////////////
@@ -213,10 +210,10 @@ public:
 	void CheckLocalTimeline();
 
 	// we could read from server or client data values
-	void ReadFromData(const bool server, NAnimationLiveBridge::SSharedModelData& data);
+	void ReadFromData(const bool server, SSharedModelData& data);
 
 	// write to server or client data values
-	void WriteToData(const bool server, NAnimationLiveBridge::SSharedModelData& data);
+	void WriteToData(const bool server, SSharedModelData& data);
 
 	void OnUIIdle();
 

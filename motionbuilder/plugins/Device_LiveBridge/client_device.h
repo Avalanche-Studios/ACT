@@ -45,7 +45,7 @@
 class CClientDevice : public FBDevice
 {
 	//--- FiLMBOX declaration
-	FBDeviceDeclare(CClientDevice, FBDevice );
+	FBDeviceDeclare(CClientDevice, FBDevice);
 
 public:
 	//--- FiLMBOX Construction/Destruction
@@ -60,33 +60,33 @@ public:
 	bool  Start();					//!< Device offline routine.
 
 	//--- Real-Time Engine callbacks
-	virtual bool AnimationNodeNotify( FBAnimationNode* pAnimationNode,FBEvaluateInfo* pEvaluateInfo	) override;		//!< Real-time evaluation function.
-	virtual void DeviceIONotify		( kDeviceIOs  pAction, FBDeviceNotifyInfo &pDeviceNotifyInfo	) override;		//!< Hardware I/O notification.
+	virtual bool AnimationNodeNotify(FBAnimationNode* pAnimationNode, FBEvaluateInfo* pEvaluateInfo) override;		//!< Real-time evaluation function.
+	virtual void DeviceIONotify(kDeviceIOs  pAction, FBDeviceNotifyInfo &pDeviceNotifyInfo) override;		//!< Hardware I/O notification.
 
 	//--- Device operation
-	virtual bool DeviceOperation	( kDeviceOperations pOperation									) override;		//!< Operate device.
+	virtual bool DeviceOperation(kDeviceOperations pOperation) override;		//!< Operate device.
 
 	//--- Load/Save.
-	virtual bool FbxStore	( FBFbxObject* pFbxObject, kFbxObjectStore pStoreWhat		) override;		//!< Store configuration in FBX.
-	virtual bool FbxRetrieve( FBFbxObject* pFbxObject, kFbxObjectStore pStoreWhat		) override;		//!< Retrieve configuration from FBX.
+	virtual bool FbxStore(FBFbxObject* pFbxObject, kFbxObjectStore pStoreWhat) override;		//!< Store configuration in FBX.
+	virtual bool FbxRetrieve(FBFbxObject* pFbxObject, kFbxObjectStore pStoreWhat) override;		//!< Retrieve configuration from FBX.
 
 	virtual bool ModelTemplateBindNotify(FBModel* pModel, int pIndex, FBModelTemplate* pModelTemplate) override;
 
 
 	//--- Recording of frame information
-	void	DeviceRecordFrame			(FBTime &pTime,FBDeviceNotifyInfo &pDeviceNotifyInfo);
+	void	DeviceRecordFrame(FBTime &pTime, FBDeviceNotifyInfo &pDeviceNotifyInfo);
 
 	//--- Get data from hardware.
-	double GetDataTX(int pChannelIndex)			{	return mHardware.GetDataTX(pChannelIndex);		}
-	double GetDataTY(int pChannelIndex)			{	return mHardware.GetDataTY(pChannelIndex);		}
-	double GetDataTZ(int pChannelIndex)			{	return mHardware.GetDataTZ(pChannelIndex);		}
-	double GetDataRX(int pChannelIndex)			{	return mHardware.GetDataRX(pChannelIndex);		}
-	double GetDataRY(int pChannelIndex)			{	return mHardware.GetDataRY(pChannelIndex);		}
-	double GetDataRZ(int pChannelIndex)			{	return mHardware.GetDataRZ(pChannelIndex);		}
+	double GetDataTX(int pChannelIndex) { return mHardware.GetDataTX(pChannelIndex); }
+	double GetDataTY(int pChannelIndex) { return mHardware.GetDataTY(pChannelIndex); }
+	double GetDataTZ(int pChannelIndex) { return mHardware.GetDataTZ(pChannelIndex); }
+	double GetDataRX(int pChannelIndex) { return mHardware.GetDataRX(pChannelIndex); }
+	double GetDataRY(int pChannelIndex) { return mHardware.GetDataRY(pChannelIndex); }
+	double GetDataRZ(int pChannelIndex) { return mHardware.GetDataRZ(pChannelIndex); }
 
 	//--- Channel list manipulation.
-	int		GetChannelCount()					{	return mHardware.GetChannelCount();				}
-	char *	GetChannelName(int pMarkerIndex)	{	return mHardware.GetChannelName(pMarkerIndex);	}
+	int		GetChannelCount() { return mHardware.GetChannelCount(); }
+	char *	GetChannelName(int pMarkerIndex) { return mHardware.GetChannelName(pMarkerIndex); }
 
 	//
 	void	EventUIIdle(HISender pSender, HKEvent pEvent);
@@ -121,10 +121,10 @@ protected:
 
 	CDataChannelManager		mDataChannels;
 
-	int						mNeedLoadXML;
+	int						mNeedLoadXML{ 0 };
 
-	bool					mUpdateInitTransform;
-	bool					mSyncSaved;
+	bool					mUpdateInitTransform{ false };
+	bool					mSyncSaved{ false };
 
 	FBTime	GetTimeOffsetFromStoryClip();
 

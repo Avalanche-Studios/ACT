@@ -92,6 +92,8 @@ public:
 	FBPropertyAction		ImportTarget;
 	FBPropertyAction		ExportTarget;
 
+	FBPropertyBool			RotationIncludeDOF;	// do we want to send rotation including a pre rotation matrix
+
 	FBPropertyAction		SaveRotationSetup;
 
 	static void ActionImportTarget(HIObject object, bool value);
@@ -125,4 +127,6 @@ protected:
 	void		DoSaveRotationSetup();
 
 	void		ChangeTemplateDefenition();
+
+	void ComputeFullRotationMatrix(FBMatrix& tm, FBEvaluateInfo* pEvaluateInfo, const int index);
 };

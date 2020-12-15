@@ -215,9 +215,9 @@ void STimeChangeManager::CheckLocalTimeline()
 }
 
 // we could read from server or client data values
-void STimeChangeManager::ReadFromData(const bool server, NAnimationLiveBridge::SSharedModelData& data)
+void STimeChangeManager::ReadFromData(const bool server, SSharedModelData& data)
 {
-	NAnimationLiveBridge::SSharedModelData::SPlayerInfo& playerInfo = (server) ? data.m_ServerPlayer : data.m_ClientPlayer;
+	SPlayerInfo& playerInfo = (server) ? data.m_ServerPlayer : data.m_ClientPlayer;
 
 	const double secs = playerInfo.m_LocalTime + mOffsetTime.GetSecondDouble();
 	FBTime packet_time;
@@ -233,9 +233,9 @@ void STimeChangeManager::ReadFromData(const bool server, NAnimationLiveBridge::S
 }
 
 // write to server or client data values
-void STimeChangeManager::WriteToData(const bool server, NAnimationLiveBridge::SSharedModelData& data)
+void STimeChangeManager::WriteToData(const bool server, SSharedModelData& data)
 {
-	NAnimationLiveBridge::SSharedModelData::SPlayerInfo& playerInfo = (server) ? data.m_ServerPlayer : data.m_ClientPlayer;
+	SPlayerInfo& playerInfo = (server) ? data.m_ServerPlayer : data.m_ClientPlayer;
 
 	CheckLocalTimeline();
 
@@ -670,7 +670,11 @@ CDataChannelManager::CDataChannelManager()
 //! a destructor
 CDataChannelManager::~CDataChannelManager()
 {
-
+	for (DataChannel* channel : mChannels)
+	{
+		channel->mIsUsed = false;
+	}
+	EndChannelSetDefinition();
 }
 
 void CDataChannelManager::Init(FBDevice* pdevice, const char* root_name, bool use_read_nodes)
@@ -691,15 +695,6 @@ void CDataChannelManager::Init(FBDevice* pdevice, const char* root_name, bool us
 
 void CDataChannelManager::Free()
 {
-	/*
-	if (mRootTemplate)
-	{
-		mRootTemplate->FBDelete();
-		mRootTemplate = nullptr;
-		mDevice = nullptr;
-		mHierarchyIsDefined = false;
-	}
-	*/
 }
 
 /************************************************
@@ -856,15 +851,28 @@ void CDataChannelManager::EndChannelSetDefinition()
 	}
 
 	//Delete entry in list for all unused channels
-	if (count_to_remove == mChannels.size())
+	if (count_to_remove == static_cast<int>(mChannels.size()))
 	{
+		for (DataChannel* channel : mChannels)
+		{
+			delete channel;
+		}
+
 		mChannels.clear();
 	}
 	else
 	{
-		std::remove_if(begin(mChannels), end(mChannels), [](DataChannel* pChannel)->bool {
-			return (false == pChannel->mIsUsed);
-		});
+		mChannels.erase(
+			std::remove_if(begin(mChannels), end(mChannels), [](DataChannel* channel)->bool
+			{
+				bool need_to_remove = (!channel->mIsUsed);
+				if (need_to_remove)
+				{
+					delete channel;
+				}
+				return need_to_remove;
+			}),
+		end(mChannels));
 	}
 	
 	//Make sure reference number still match
@@ -872,19 +880,19 @@ void CDataChannelManager::EndChannelSetDefinition()
 	{
 		if (mChannels[i]->mTAnimNode)
 		{
-			mChannels[i]->mTAnimNode->Reference = (kReference)i;
+			mChannels[i]->mTAnimNode->Reference = static_cast<kReference>(i);
 		}
 		if (mChannels[i]->mRAnimNode)
 		{
-			mChannels[i]->mRAnimNode->Reference = (kReference)i;
+			mChannels[i]->mRAnimNode->Reference = static_cast<kReference>(i);
 		}
 		if (mChannels[i]->mTFBNode)
 		{
-			mChannels[i]->mTFBNode->Reference = (kReference)i;
+			mChannels[i]->mTFBNode->Reference = static_cast<kReference>(i);
 		}
 		if (mChannels[i]->mRFBNode)
 		{
-			mChannels[i]->mRFBNode->Reference = (kReference)i;
+			mChannels[i]->mRFBNode->Reference = static_cast<kReference>(i);
 		}
 	}
 
@@ -1082,46 +1090,23 @@ bool ExportTargetAnimation(FBModel* pFacialRoot, FBModel* pRoot, FBModel* pLeft,
 	tmpRight->Parent = tmpRoot;
 
 	FBConstraint* constraint = FBConstraintManager::TheOne().TypeCreateConstraint("Parent/Child");
-	//FBConstraint* constraintL = FBConstraintManager::TheOne().TypeCreateConstraint("Parent/Child");
-	//FBConstraint* constraintR = FBConstraintManager::TheOne().TypeCreateConstraint("Parent/Child");
-
+	
 	if (constraint) // && constraintL && constraintR)
 	{
-		//FBMatrix tm;
-		//pRoot->GetMatrix(tm);
-		//tmpRoot->SetMatrix(tm);
-
+		
 		constraint->ReferenceAdd(0, tmpRoot);
 		constraint->ReferenceAdd(1, pRoot);
 		constraint->Lock = true;
 		constraint->Active = true;
 
-// 		pLeft->GetMatrix(tm);
-// 		tmpLeft->SetMatrix(tm);
-
-// 		constraintL->ReferenceAdd(0, tmpLeft);
-// 		constraintL->ReferenceAdd(1, pLeft);
-// 		constraintL->Active = true;
-
-// 		pRight->GetMatrix(tm);
-// 		tmpRight->SetMatrix(tm);
-
-// 		constraintR->ReferenceAdd(0, tmpRight);
-// 		constraintR->ReferenceAdd(1, pRight);
-// 		constraintR->Active = true;
-
 		FBTime lPeriod(0, 0, 0, 1);
 		FBArrayTemplate<FBBox*>	objs;
 		objs.Add(tmpRoot);
-// 		objs.Add(tmpLeft);
-// 		objs.Add(tmpRight);
 
 		FBTake* currTake = lSystem.CurrentTake;
 		currTake->PlotTakeOnObjects(lPeriod, &objs);
 
 		constraint->Active = false;
-// 		constraintL->Active = false;
-// 		constraintR->Active = false;
 
 		tmpRoot->Scaling = pRoot->Scaling;
 

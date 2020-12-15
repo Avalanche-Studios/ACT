@@ -30,8 +30,6 @@
 
 //--- Class declarations
 #include <fbsdk/fbsdk.h>
-#define _WINSOCKAPI_    // stops windows.h including winsock.h
-#include <Windows.h>
 #include "shared.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -77,15 +75,11 @@ public:
 	const FBVector3d&	GetLookAtLeftPos() { return mLookAtLeftPos; }
 	const FBVector3d&	GetLookAtRightPos() { return mLookAtRightPos; }
 	
-	void SetSyncSaved() { mSyncSaved = true; }
-	const bool HasNewSync() {
-		bool value = mHasNewSync;
-		mHasNewSync = false;
-		return value;
-	}
+	void		SyncSaved();
+	bool		HasNewSync();
 	
 	//
-	STimeChangeManager		mTimeChangeManager;
+	STimelineSyncManager*	GetTimelineSync() { return m_TimelineSync; }
 
 private:
 	FBSystem	mSystem;				//!< System interface.
@@ -95,14 +89,7 @@ private:
 	FBVector3d	mLookAtLeftPos;
 	FBVector3d	mLookAtRightPos;
 	
-	bool				mSyncSaved;
-	bool				mHasNewSync;
-
-	NAnimationLiveBridge::SSharedModelData*		mData;
-
-	bool		mFileOpen;				//!< Is file open?
-	HANDLE		mMapFile;
-
-	HANDLE		mEventToClient;
-	HANDLE		mEventFromClient;
+	unsigned int				m_SessionId{ 0 };
+	SSharedModelData*			m_Data;
+	STimelineSyncManager*		m_TimelineSync{ nullptr };
 };

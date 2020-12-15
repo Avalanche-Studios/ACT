@@ -276,7 +276,7 @@ void CServerDeviceLayout::UIConfigure()
 {
 	SetBorder ("MainLayout", kFBStandardBorder, false,true, 1, 0,90,0);
 
-	mTabPanel.Items.SetString("Setup~Mapping");
+	mTabPanel.Items.SetString("Setup~Information");
 	mTabPanel.OnChange.Add( this, (FBCallback)&CServerDeviceLayout::EventTabPanelChange );
 
 	UIConfigureLayout0();

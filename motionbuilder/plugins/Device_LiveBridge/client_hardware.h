@@ -30,8 +30,6 @@
 
 //--- SDK include
 #include <fbsdk/fbsdk.h>
-#define _WINSOCKAPI_    // stops windows.h including winsock.h
-#include <Windows.h>
 
 #include "shared.h"
 
@@ -77,61 +75,49 @@ public:
 	bool	StopDataStream	();						//!< Take the device out of streaming mode.
 
 	//--- Channel & Channel data management
-	char*	GetChannelName	(int pChannel)		{	return (char *)mChannelName[pChannel];	}
-	int		GetChannelCount	()					{	return mChannelCount;					}
-	double	GetDataTX		(int pChannel)		{	return mChannelData[pChannel][DATA_TX];	}
-	double	GetDataTY		(int pChannel)		{	return mChannelData[pChannel][DATA_TY];	}
-	double	GetDataTZ		(int pChannel)		{	return mChannelData[pChannel][DATA_TZ];	}
-	double	GetDataRX		(int pChannel)		{	return mChannelData[pChannel][DATA_RX];	}
-	double	GetDataRY		(int pChannel)		{	return mChannelData[pChannel][DATA_RY];	}
-	double	GetDataRZ		(int pChannel)		{	return mChannelData[pChannel][DATA_RZ];	}
+	char*	GetChannelName	(int pChannel)		{	return (char *)m_ChannelName[pChannel];	}
+	int		GetChannelCount	()					{	return m_ChannelCount;					}
+	double	GetDataTX		(int pChannel)		{	return m_ChannelData[pChannel][DATA_TX];	}
+	double	GetDataTY		(int pChannel)		{	return m_ChannelData[pChannel][DATA_TY];	}
+	double	GetDataTZ		(int pChannel)		{	return m_ChannelData[pChannel][DATA_TZ];	}
+	double	GetDataRX		(int pChannel)		{	return m_ChannelData[pChannel][DATA_RX];	}
+	double	GetDataRY		(int pChannel)		{	return m_ChannelData[pChannel][DATA_RY];	}
+	double	GetDataRZ		(int pChannel)		{	return m_ChannelData[pChannel][DATA_RZ];	}
 
-	const bool IsDataReceived() const { return mDataReceived; }
+	const bool IsDataReceived() const { return m_DataReceived; }
 
-	void SetLookAtRoot(const FBVector3d& pos) { mLookAtRootPos = pos; }
-	void SetLookAtLeft(const FBVector3d& pos) { mLookAtLeftPos = pos; }
-	void SetLookAtRight(const FBVector3d& pos) { mLookAtRightPos = pos; }
+	void SetLookAtRoot(const FBVector3d& pos) { m_LookAtRootPos = pos; }
+	void SetLookAtLeft(const FBVector3d& pos) { m_LookAtLeftPos = pos; }
+	void SetLookAtRight(const FBVector3d& pos) { m_LookAtRightPos = pos; }
 
-	void SetSyncSaved() { mSyncSaved = true; }
-
-	const bool HasNewSync() {
-		bool value = mHasNewSync;
-		mHasNewSync = false;
-		return value;
-	}
+	void		SyncSaved();
+	bool		HasNewSync();
 
 	//
-	STimeChangeManager			mTimeChangeManager;
+	STimelineSyncManager*	GetTimelineSync() { return m_TimelineSync; }
 
 private:
-	FBSystem			mSystem;									//!< System interface.
-	FBPlayerControl		mPlayerControl;
+	FBSystem			m_System;									//!< System interface.
+	FBPlayerControl		m_PlayerControl;
 
-	NAnimationLiveBridge::SSharedModelData*			mData;
-
-	bool				mIsPlaying;
-	bool				mTimeChanged;
+	bool				m_IsPlaying{ false };
+	bool				m_TimeChanged{ false };
 	
-	FBVector3d			mLookAtRootPos;
-	FBVector3d			mLookAtLeftPos;
-	FBVector3d			mLookAtRightPos;
+	FBVector3d			m_LookAtRootPos;
+	FBVector3d			m_LookAtLeftPos;
+	FBVector3d			m_LookAtRightPos;
 	
-	bool				mSyncSaved;
-	bool				mHasNewSync;
+	FBTime				m_LocalTime;
+	FBTime				m_OffsetTime;
 
-	FBTime				mLocalTime;
-	FBTime				mOffsetTime;
+	bool			m_DataReceived;
+	FBString		m_ChannelName[MAX_CHANNEL];					//!< Channel name.
+	unsigned int	m_ChannelNameHash[MAX_CHANNEL];
+	double			m_ChannelData[MAX_CHANNEL][DATA_TYPE_COUNT];	//!< Channel data.
 
-	bool			mDataReceived;
-	FBString	mChannelName[MAX_CHANNEL];					//!< Channel name.
-	double		mChannelData[MAX_CHANNEL][DATA_TYPE_COUNT];	//!< Channel data.
+	int				m_ChannelCount;								//!< Channel count.
+	long			m_Counter;									//!< Time counter for hands.
 
-	int			mChannelCount;								//!< Channel count.
-	long		mCounter;									//!< Time counter for hands.
-
-	bool		mFileOpen;
-	HANDLE		mMapFile;
-
-	HANDLE		mEventToClient;
-	HANDLE		mEventFromClient;
+	unsigned int				m_SessionId{ 0 };
+	STimelineSyncManager*		m_TimelineSync{ nullptr };
 };
