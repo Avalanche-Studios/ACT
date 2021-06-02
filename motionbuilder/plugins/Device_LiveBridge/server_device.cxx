@@ -111,7 +111,7 @@ bool CServerDevice::FBCreate()
 
 	//
 
-	ChangeTemplateDefenition();
+	ChangeTemplateDefinition();
 
 	mExportRate		= 30.0;
 	mNeedSaveXML = 0;
@@ -122,7 +122,7 @@ bool CServerDevice::FBCreate()
 	return true;
 }
 
-void CServerDevice::ChangeTemplateDefenition()
+void CServerDevice::ChangeTemplateDefinition()
 {
 	using namespace NShared;
 	// DONE: remove old definition and replace with a new one
@@ -485,7 +485,6 @@ void CServerDevice::DeviceIONotify( kDeviceIOs  pAction,FBDeviceNotifyInfo &pDev
 
 			mHardware.GetTimelineSync()->SetLocalTimeline(lEvalTime.GetSecondDouble(), is_playing);
 
-			//lEvalTime = pDeviceNotifyInfo.GetSystemTime();
 			mHardware.SendDataPacket( lEvalTime );
 			
 			if (mHardware.GetTimelineSync()->IsRemoteTimeChanged())
@@ -494,8 +493,6 @@ void CServerDevice::DeviceIONotify( kDeviceIOs  pAction,FBDeviceNotifyInfo &pDev
 				remote_time.SetSecondDouble(mHardware.GetTimelineSync()->GetRemoteTime());
 				pDeviceNotifyInfo.SetLocalTime(remote_time);
 
-				mHardware.SendDataPacket(lEvalTime);
-				//mHardware.ResetTimeChange();
 			}
 
 			mLookAtRootPos = mHardware.GetLookAtRootPos();
@@ -539,6 +536,7 @@ void CServerDevice::DeviceIONotify( kDeviceIOs  pAction,FBDeviceNotifyInfo &pDev
  ************************************************/
 bool CServerDevice::FbxStore(FBFbxObject* pFbxObject,kFbxObjectStore pStoreWhat)
 {
+	NShared::StoreJointSet(pFbxObject);
 	mDataChannels.FbxStore(pFbxObject, pStoreWhat);
 	return ParentClass::FbxStore(pFbxObject, pStoreWhat);
 }
@@ -549,6 +547,14 @@ bool CServerDevice::FbxStore(FBFbxObject* pFbxObject,kFbxObjectStore pStoreWhat)
  ************************************************/
 bool CServerDevice::FbxRetrieve(FBFbxObject* pFbxObject,kFbxObjectStore pStoreWhat)
 {
+	if (pStoreWhat & kAttributes)
+	{
+		if (NShared::RetrieveJointSet(pFbxObject))
+		{
+			ChangeTemplateDefinition();
+		}
+	}
+
 	mDataChannels.FbxRetrieve(pFbxObject, pStoreWhat);
 	return ParentClass::FbxRetrieve(pFbxObject, pStoreWhat);
 }
@@ -649,7 +655,7 @@ bool CServerDevice::ImportJointSet(const char* filename)
 {
 	if (NShared::ImportJointSet(filename))
 	{
-		ChangeTemplateDefenition();
+		ChangeTemplateDefinition();
 		return true;
 	}
 	return false;

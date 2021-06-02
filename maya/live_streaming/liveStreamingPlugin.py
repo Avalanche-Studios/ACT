@@ -78,6 +78,9 @@ g_HUDInfo = ""
 global g_Callback
 g_Callback = None
 
+global g_FPS
+g_FPS = 30.0
+
    
 def track_models():
     
@@ -124,20 +127,28 @@ def track_models():
         g_JointPropData.resize(len(g_JointProps))
 
     for i, plug in enumerate(g_JointProps):
-        
         value = plug.asFloat()
         g_JointPropData[i].m_Value = 0.01 * value
         
-    conversion = 1.0 / 30.0
-    shared_data.m_ServerPlayer.m_LocalTime = conversion * cmds.currentTime(q = True)
-    shared_data.m_ServerPlayer.m_StartTime = conversion * cmds.playbackOptions(query=True, min=True)
-    shared_data.m_ServerPlayer.m_StopTime = conversion * cmds.playbackOptions(query=True, max=True)
-    # TODO: send playback update trigger and is playing state
-    
     AnimLiveBridge.SetModelDataProperties(g_SessionId, g_JointPropData)
 
-    result = AnimLiveBridge.FlushData(g_SessionId, True)
+    # update timeline
+    conversion = 1.0 / g_FPS
+    local_time = conversion * cmds.currentTime(q = True)
+    is_playing = cmds.play(q=True) > 0
+    
+    timeline = AnimLiveBridge.MapTimelineSync(g_SessionId)
+    timeline.SetLocalTime(local_time)
+    timeline.SetIsPlaying(is_playing)
+    timeline.SetLocalTimeline(local_time, is_playing)
 
+    result = AnimLiveBridge.HardwareCommit(g_SessionId, True)
+
+    remote_time = 0.0
+    if timeline.CheckForARemoteTimeControl(remote_time, local_time, is_playing)[0]:
+        remote_time = timeline.GetRemoteTime() * g_FPS
+        cmds.currentTime( int(remote_time) )
+        
 
 def getShortName(dagPath):
     return dagPath.partialPathName().split('|')[-1]
@@ -159,18 +170,13 @@ def StartWithSelected(models):
         OpenMaya.MGlobal.displayError("Please restart maya with administrative rights!, error " + str(error_code))
         return False
     
-    connector1 = AnimLiveBridge.MapModelData(g_SessionId)
+    shared_data = AnimLiveBridge.MapModelData(g_SessionId)
     
-    if not connector1:
+    if not shared_data:
         return False
 
-    connector1.m_Header.m_ModelsCount = 0
-    connector1.m_Header.m_PropsCount = 0    
-    
-    conversion = 1.0 / 30.0
-    connector1.m_ServerPlayer.m_LocalTime = conversion * cmds.currentTime(q = True)
-    connector1.m_ServerPlayer.m_StartTime = conversion * cmds.playbackOptions(query=True, min=True)
-    connector1.m_ServerPlayer.m_StopTime = conversion * cmds.playbackOptions(query=True, max=True)
+    shared_data.m_Header.m_ModelsCount = 0
+    shared_data.m_Header.m_PropsCount = 0    
     
     count = models.length() # connector1.m_Header.m_ModelsCount
     if count >= AnimLiveBridge.NUMBER_OF_JOINTS:
@@ -202,11 +208,11 @@ def StartWithSelected(models):
                         g_JointProps.append((attrib_name, plug))
 
     if len(g_Joints) == 0:
-        OpenMaya.MGlobal.displayError('No joints were selected for live streaming')
+        OpenMaya.MGlobal.displayError('No joints were selected for a live streaming')
         return False
                         
-    connector1.m_Header.m_ModelsCount = len(g_Joints)
-    connector1.m_Header.m_PropsCount = len(g_JointProps)
+    shared_data.m_Header.m_ModelsCount = len(g_Joints)
+    shared_data.m_Header.m_PropsCount = len(g_JointProps)
     
     # fill name hashes
     g_JointData.resize(len(g_Joints))
@@ -255,7 +261,7 @@ class StartLive(OpenMayaMPx.MPxCommand):
         g_SessionId = AnimLiveBridge.NewLiveSession()
         
         if not StartWithSelected(models):
-            AnimLiveBridge.EraseLiveSession(g_SessionId)
+            AnimLiveBridge.FreeLiveSession(g_SessionId)
             g_SessionId = 0
             return
         
@@ -290,13 +296,13 @@ class StopLive(OpenMayaMPx.MPxCommand):
             connector1.m_Header.m_ModelsCount = 0
             connector1.m_Header.m_PropsCount = 0
 
-        AnimLiveBridge.EraseLiveSession(g_SessionId)
+        AnimLiveBridge.FreeLiveSession(g_SessionId)
 
         if g_Callback is not None:
             OpenMaya.MMessage.removeCallback(g_Callback)
             g_Callback = None
 
-        OpenMaya.MGlobal.displayInfo('Live streaming is stoped!')
+        OpenMaya.MGlobal.displayInfo('Live streaming is stopped!')
         cmds.headsUpDisplay( 'HUDLIVESTREAM', rem=True )
  
 

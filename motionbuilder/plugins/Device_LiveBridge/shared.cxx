@@ -180,6 +180,54 @@ namespace NShared
 		return true;
 	}
 
+	bool StoreJointSet(FBFbxObject* pFbxObject)
+	{
+		if (g_ReferenceName.empty() || g_JointSet.empty())
+			return false;
+		
+		pFbxObject->FieldWriteBegin("Reference");
+		pFbxObject->FieldWriteC(g_ReferenceName.c_str());
+
+		pFbxObject->FieldWriteEnd();
+
+		const int count = static_cast<int>(g_JointSet.size());
+
+		pFbxObject->FieldWriteBegin("JointSet");
+		pFbxObject->FieldWriteI(count);
+		for (int i = 0; i < count; ++i)
+		{
+			pFbxObject->FieldWriteC(g_JointSet[i].c_str());
+		}
+		pFbxObject->FieldWriteEnd();
+		return true;
+	}
+
+	bool RetrieveJointSet(FBFbxObject* pFbxObject)
+	{
+		g_ReferenceName.clear();
+		g_JointSet.clear();
+
+		if (pFbxObject->FieldReadBegin("Reference"))
+		{
+			g_ReferenceName = pFbxObject->FieldReadC();
+			pFbxObject->FieldReadEnd();
+		}
+
+		if (pFbxObject->FieldReadBegin("JointSet"))
+		{
+			const int count = pFbxObject->FieldReadI();
+
+			g_JointSet.resize(count);
+
+			for (int i = 0; i < count; ++i)
+			{
+				g_JointSet[i] = pFbxObject->FieldReadC();
+			}
+			pFbxObject->FieldReadEnd();
+		}
+
+		return (!g_ReferenceName.empty());
+	}
 };
 
 
@@ -623,7 +671,7 @@ bool CDataChannelManager::FbxRetrieve(FBFbxObject* pFbxObject, kFbxObjectStore p
 		if (pFbxObject->FieldReadBegin("Models"))
 		{
 			const int count = pFbxObject->FieldReadI();
-
+			
 			for (int i = 0; i < count; ++i)
 			{
 				FBString channel_name = pFbxObject->FieldReadC();

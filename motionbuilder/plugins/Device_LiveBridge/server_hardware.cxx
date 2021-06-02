@@ -53,7 +53,7 @@ CServerHardware::CServerHardware()
  ************************************************/
 CServerHardware::~CServerHardware()
 {
-	EraseLiveSession(m_SessionId);
+	FreeLiveSession(m_SessionId);
 
 	if (m_Data)
 	{
@@ -97,6 +97,7 @@ bool CServerHardware::GetSetupInfo()
 bool CServerHardware::Close()
 {
 	UnMapTimelineSync(m_SessionId);
+	m_TimelineSync = nullptr;
 	HardwareClose(m_SessionId);
 	return true;
 }
@@ -157,7 +158,7 @@ bool CServerHardware::SendDataPacket(FBTime &pTime)
 		memcpy(model_data, m_Data, sizeof(SSharedModelData));
 		UnMapModelData(m_SessionId);
 
-		const int error_code = FlushData(m_SessionId, true);
+		const int error_code = HardwareCommit(m_SessionId, true);
 
 		if (error_code != 0)
 		{
@@ -221,6 +222,8 @@ void CServerHardware::WriteRot( const int index, const double* pRot )
 	dst_values[0] = static_cast<float>(pRot[0]);
 	dst_values[1] = static_cast<float>(pRot[1]);
 	dst_values[2] = static_cast<float>(pRot[2]);
+
+	m_Data->m_Joints.m_Data[index].m_Flags = HINT_ROTATION_EULERANGLES;
 }
 
 void CServerHardware::WriteMatrix(const int index, const FBMatrix& tm)
@@ -245,6 +248,8 @@ void CServerHardware::WriteMatrix(const int index, const FBMatrix& tm)
 	}
 
 	rotation[3] = static_cast<float>(q[3]);
+
+	info.m_Flags = HINT_ROTATION_QUATERNION;
 }
 
 void CServerHardware::WriteProp(const int index, const double value)

@@ -16,31 +16,29 @@ else()
 	set( MOBU_ROOT "C:/Program Files/Autodesk/MotionBuilder 2017")
 endif()
 
-set(ORSDK_INCLUDE_PATH ${MOBU_ROOT}/OpenRealitySDK/Include CACHE STRING "MotionBuilder OR SDK Include Location")
-set(ORSDK_INCLUDE_PATH ${MOBU_ROOT}/OpenRealitySDK/Include CACHE PATH "MotionBuilder OR SDK Include Location")
 
-set(ORSDK_LIB_PATH ${MOBU_ROOT}/OpenRealitySDK/lib CACHE STRING "MotionBuilder OR SDK Library Location")
-set(ORSDK_LIB_PATH ${MOBU_ROOT}/OpenRealitySDK/lib CACHE PATH "MotionBuilder OR SDK Library Location")
+set(ORSDK_PATH ${MOBU_ROOT}/OpenRealitySDK CACHE STRING "MotionBuilder OR SDK Location")
+set(ORSDK_PATH ${MOBU_ROOT}/OpenRealitySDK CACHE PATH "MotionBuilder OR SDK Location")
 
 
-find_path(ORSDK_INCLUDE_PATH "fbxsdk.h"
+find_path(ORSDK_PATH "fbxsdk.h"
 	PATHS
-	"${ORSDK_INCLUDE_PATH}"
+	"${ORSDK_PATH}/include"
 )
 
-if( ORSDK_INCLUDE_PATH )
+if( ORSDK_PATH )
   set( ORSDK_FOUND 1 )
   message( STATUS "Found OpenRealitySDK!" )
-else( ORSDK_INCLUDE_PATH )
+else( ORSDK_PATH )
   set( ORSDK_FOUND 0 CACHE STRING "Set to 1 if ORSDK is found, 0 otherwise" )
   message( STATUS "Could not find OpenRealitySDK." )
-endif( ORSDK_INCLUDE_PATH )
+endif( ORSDK_PATH )
 
 # setup libraries
 set( ORFB_LIBRARY ORFB_LIBRARY-NOTFOUND )
 find_library( ORFB_LIBRARY fbsdk
   PATHS
-  "${ORSDK_LIB_PATH}"
+  "${ORSDK_PATH}/lib/x64"
   NO_DEFAULT_PATH
   DOC "The directory where MotionBuilder fbsdk.lib resides" )
 
@@ -48,14 +46,14 @@ set( ORFBX_LIBRARY ORFBX_LIBRARY-NOTFOUND )
 # back compatibility with old fbx sdk library name
 find_library( ORFBX_LIBRARY fbxsdk
 		PATHS
-		"${ORSDK_LIB_PATH}"
+		"${ORSDK_PATH}/lib/x64"
 		NO_DEFAULT_PATH
 		DOC "The directory where MotionBuilder fbxsdk.lib resides" )
 
 if (ORFBX_LIBRARY STREQUAL ORFBX_LIBRARY-NOTFOUND)
 	find_library( ORFBX_LIBRARY libfbxsdk-adsk
   		PATHS
-  		"${ORSDK_LIB_PATH}"
+  		"${ORSDK_PATH}/lib/x64"
   		NO_DEFAULT_PATH
   		DOC "The directory where MotionBuilder libfbxsdk-adsk.lib resides" )	
 endif()
@@ -110,7 +108,7 @@ macro(ADD_MOBU_PLUGIN)
 	)
 
 	# OR SDK headers
-	target_include_directories(${PluginName} PUBLIC "${ORSDK_INCLUDE_PATH}")
+	target_include_directories(${PluginName} PUBLIC "${ORSDK_PATH}/include")
 
 	# link OpenReality SDK to our project
 	target_link_libraries(${PluginName} ${ORSDK_LIBRARIES} "opengl32.lib")
@@ -155,7 +153,7 @@ macro(ADD_MOBU_FBX_PLUGIN)
 	)
 
 	# OR SDK headers
-	target_include_directories(${PluginName} PUBLIC "${ORSDK_INCLUDE_PATH}")
+	target_include_directories(${PluginName} PUBLIC "${ORSDK_PATH}/include")
 
 	# link OpenReality SDK to our project
 	target_link_libraries(${PluginName} ${ORSDK_LIBRARIES} "opengl32.lib")

@@ -16,10 +16,22 @@
 %template(SJointDataVector) std::vector<SJointData>;
 %template(SPropertyDataVector) std::vector<SPropertyData>;
 
+%include <typemaps.i>
+%apply double& INOUT { double& remote_time };
+
 %include "AnimLiveBridge.h"
 %include "carrays.i"
 %array_class(float, FloatArray);
 %array_class(unsigned int, UIntArray);
+
+%pythoncode %{
+import _AnimLiveBridge
+for name in dir(_AnimLiveBridge):
+    if name.find('ECommunicationType_') == 0:
+       setattr(_AnimLiveBridge, name[19:], getattr(_AnimLiveBridge, name))
+       delattr(_AnimLiveBridge, name) # optional
+del name
+%}
 
 // set exception handling for __getitem__
 %exception SJointDataArray::__getitem__ {

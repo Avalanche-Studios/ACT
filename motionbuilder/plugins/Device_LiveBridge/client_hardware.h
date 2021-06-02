@@ -84,7 +84,7 @@ public:
 	double	GetDataRY		(int pChannel)		{	return m_ChannelData[pChannel][DATA_RY];	}
 	double	GetDataRZ		(int pChannel)		{	return m_ChannelData[pChannel][DATA_RZ];	}
 
-	const bool IsDataReceived() const { return m_DataReceived; }
+	const bool IsDataReceived(const int index) const { return m_DataReceived[index]; }
 
 	void SetLookAtRoot(const FBVector3d& pos) { m_LookAtRootPos = pos; }
 	void SetLookAtLeft(const FBVector3d& pos) { m_LookAtLeftPos = pos; }
@@ -110,7 +110,7 @@ private:
 	FBTime				m_LocalTime;
 	FBTime				m_OffsetTime;
 
-	bool			m_DataReceived;
+	bool			m_DataReceived[MAX_CHANNEL];
 	FBString		m_ChannelName[MAX_CHANNEL];					//!< Channel name.
 	unsigned int	m_ChannelNameHash[MAX_CHANNEL];
 	double			m_ChannelData[MAX_CHANNEL][DATA_TYPE_COUNT];	//!< Channel data.

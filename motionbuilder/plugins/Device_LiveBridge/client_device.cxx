@@ -281,7 +281,7 @@ bool CClientDevice::AnimationNodeNotify(FBAnimationNode* pAnimationNode ,FBEvalu
 
 	int Index = pAnimationNode->Reference;
 
-	if (mHardware.IsDataReceived())
+	if (mHardware.IsDataReceived(Index))
 	{
 		Pos[0] = GetDataTX(Index);
 		Pos[1] = GetDataTY(Index);
@@ -290,18 +290,10 @@ bool CClientDevice::AnimationNodeNotify(FBAnimationNode* pAnimationNode ,FBEvalu
 		Rot[1] = GetDataRY(Index);
 		Rot[2] = GetDataRZ(Index);
 
-		mDataChannels.WriteData(Index, Pos, Rot, pEvaluateInfo);
-
-		return true;
-	}
-	else
-	{
-		mDataChannels.GetChannelDefault(Index, Pos, Rot);
-		mDataChannels.WriteData(Index, Pos, Rot, pEvaluateInfo);
-
-		return true;
+		return mDataChannels.WriteData(Index, Pos, Rot, pEvaluateInfo);
 	}
 	
+	pAnimationNode->DisableIfNotWritten(pEvaluateInfo);
 	return false;
 }
 
@@ -446,8 +438,6 @@ FBTime	CClientDevice::GetTimeOffsetFromStoryClip()
  ************************************************/
 void CClientDevice::DeviceRecordFrame(FBTime &pTime,FBDeviceNotifyInfo &pDeviceNotifyInfo)
 {
-	//pTime = mSystem.LocalTime;
-
 	double	Pos[3];
 	double	Rot[3];
 
@@ -488,6 +478,7 @@ void CClientDevice::DeviceRecordFrame(FBTime &pTime,FBDeviceNotifyInfo &pDeviceN
  ************************************************/
 bool CClientDevice::FbxStore(FBFbxObject* pFbxObject,kFbxObjectStore pStoreWhat)
 {
+	NShared::StoreJointSet(pFbxObject);
 	mDataChannels.FbxStore(pFbxObject, pStoreWhat);
 	return ParentClass::FbxStore(pFbxObject, pStoreWhat);
 }
@@ -497,7 +488,16 @@ bool CClientDevice::FbxStore(FBFbxObject* pFbxObject,kFbxObjectStore pStoreWhat)
  ************************************************/
 bool CClientDevice::FbxRetrieve(FBFbxObject* pFbxObject,kFbxObjectStore pStoreWhat)
 {
+	if (pStoreWhat & kAttributes)
+	{
+		if (NShared::RetrieveJointSet(pFbxObject))
+		{
+			ChangeTemplateDefenition();
+		}
+	}
+
 	mDataChannels.FbxRetrieve(pFbxObject, pStoreWhat);
+
 	return ParentClass::FbxRetrieve(pFbxObject, pStoreWhat);
 }
 

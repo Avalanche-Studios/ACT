@@ -9,13 +9,15 @@ project(ACT 	VERSION 1.0
 				LANGUAGES C CXX)
 
 
+   
+#
 include_directories(".")
-add_library(AnimLiveBridgeAPI SHARED AnimLiveBridge/AnimLiveBridge.cpp) 
+file(GLOB API_SOURCES "AnimLiveBridge/*.cpp" "AnimLiveBridge/*.h")
+add_library(AnimLiveBridgeAPI SHARED ${API_SOURCES}) 
     
 #this says where to put the generated .dll relative to the directory "cmake" is executed from
 set_target_properties(AnimLiveBridgeAPI PROPERTIES LIBRARY_OUTPUT_DIRECTORY "Result/.") 
-    
-  
+      
 #SWIG stuff:
 
 find_package(SWIG REQUIRED COMPONENTS python)
@@ -28,6 +30,7 @@ include(UseSWIG)
 #point to python headers
 include_directories(${PYTHON_INCLUDE_DIRS})
 include_directories("../AnimLiveBridge/.")
+include_directories("AnimLiveBridge/")
 include_directories("C:/Avalanche/Python-2.7.3/Win64/include")
 
 set_property(SOURCE AnimLiveBridge/AnimLiveBridge.i PROPERTY CPLUSPLUS ON)
@@ -48,6 +51,13 @@ set_property(
     ${AnimLiveBridge-SWIG_INCLUDE_DIRS}
     ${AnimLiveBridge_INCLUDE_DIRS}
 )
+
+# Test for live bridge API
+
+add_executable(AnimLiveBridgeTest Tests/AnimLiveBridgeTest.cpp)
+
+target_include_directories(AnimLiveBridgeTest PUBLIC "AnimLiveBridge/")
+target_link_libraries(AnimLiveBridgeTest AnimLiveBridgeAPI)
 
 # MoBu Plugins
 

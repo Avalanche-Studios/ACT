@@ -126,7 +126,7 @@ protected:
 	void		DoExportTarget();
 	void		DoSaveRotationSetup();
 
-	void		ChangeTemplateDefenition();
+	void		ChangeTemplateDefinition();
 
 	void ComputeFullRotationMatrix(FBMatrix& tm, FBEvaluateInfo* pEvaluateInfo, const int index);
 };

@@ -50,10 +50,10 @@ CClientHardware::CClientHardware()
 			m_ChannelData[i][j] = 0.0;
 		}
 		m_ChannelNameHash[i] = 0;
+		m_DataReceived[i] = false;
 	}
 
 	m_SessionId = NewLiveSession();
-	m_DataReceived = false;
 }
 
 
@@ -62,7 +62,7 @@ CClientHardware::CClientHardware()
  ************************************************/
 CClientHardware::~CClientHardware()
 {
-	EraseLiveSession(m_SessionId);
+	FreeLiveSession(m_SessionId);
 }
 
 
@@ -80,6 +80,11 @@ bool CClientHardware::Open(const char* pair_name)
 		return false;
 	}
 	m_TimelineSync = MapTimelineSync(m_SessionId);
+
+	for (int i = 0; i < MAX_CHANNEL; ++i)
+	{
+		m_DataReceived[i] = false;
+	}
 
 	return true;
 }
@@ -166,9 +171,14 @@ bool CClientHardware::PollData()
 
 	m_Counter++;
 	
-	const int error_code = FlushData(m_SessionId, false);
+	const int error_code = HardwareCommit(m_SessionId, false);
 	if (error_code == 0)
 	{
+		for (int j = 0; j < m_ChannelCount; ++j)
+		{
+			m_DataReceived[j] = false;
+		}
+
 		FBVector3d r;
 		FBQuaternion q;
 
@@ -190,19 +200,26 @@ bool CClientHardware::PollData()
 						m_ChannelData[j][DATA_TX + k] = static_cast<double>(joint_translation[k]);
 						q[k] = static_cast<double>(joint_rotation[k]);
 					}
-					q[3] = static_cast<double>(joint_rotation[3]);
-					FBQuaternionToRotation(r, q);
 
-					memcpy(&m_ChannelData[j][DATA_RX], r, sizeof(double) * 3);
+					if (data->m_Joints.m_Data[i].m_Flags & HINT_ROTATION_EULERANGLES)
+					{
+						memcpy(&m_ChannelData[j][DATA_RX], q, sizeof(double) * 3);
+					}
+					else
+					{
+						q[3] = static_cast<double>(joint_rotation[3]);
+						FBQuaternionToRotation(r, q);
 
+						memcpy(&m_ChannelData[j][DATA_RX], r, sizeof(double) * 3);
+					}
+
+					m_DataReceived[j] = true;
 					break;
 				}
 			}
 		}
 
 		SetFinishEvent(m_SessionId);
-
-		m_DataReceived = true;
 	}
 	else
 	{
